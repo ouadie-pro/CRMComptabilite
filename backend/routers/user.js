@@ -1,12 +1,25 @@
 const express = require('express');
 const Router = express.Router();
-const {registerUser , loginUser , getIDUser , deletUser , getUser , updateUser} = require('../controllers/User');
+const {
+  registerUser,
+  loginUser,
+  getAllUsers,
+  getUserById,
+  updateUser,
+  changePassword,
+  deleteUser,
+  authMiddleware
+} = require('../controllers/User');
 
-Router.get('/',getUser);
-Router.post('/register',registerUser);
-Router.post('/signin',loginUser);
-Router.get('/:id',getIDUser);
-Router.put('/:id',updateUser);
-Router.delete('/:id',deletUser);
+Router.post('/register', registerUser);
+Router.post('/login', loginUser);
+
+Router.use(authMiddleware);
+
+Router.get('/', getAllUsers);
+Router.get('/:id', getUserById);
+Router.put('/:id', updateUser);
+Router.put('/:id/password', changePassword);
+Router.delete('/:id', deleteUser);
 
 module.exports = Router;
