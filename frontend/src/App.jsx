@@ -1,35 +1,166 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-function App() {
-  const [count, setCount] = useState(0)
+import Login from './pages/auth/Login';
+import Logout from './pages/auth/Logout';
+import Dashboard from './pages/dashboard/Dashboard';
+import Clients from './pages/clients/Clients';
+import ClientDetail from './pages/clients/ClientDetail';
+import Invoices from './pages/invoices/Invoices';
+import Products from './pages/products/Products';
+import Expenses from './pages/expenses/Expenses';
+import Reports from './pages/reports/Reports';
+import Audit from './pages/reports/Audit';
+import Settings from './pages/settings/Settings';
 
+const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+const PublicRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+const AppRoutes = () => {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <Login />
+          </PublicRoute>
+        }
+      />
+      
+      <Route
+        path="/logout"
+        element={<Logout />}
+      />
+      
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/clients"
+        element={
+          <ProtectedRoute>
+            <Clients />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/clients/:id"
+        element={
+          <ProtectedRoute>
+            <ClientDetail />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/invoices"
+        element={
+          <ProtectedRoute>
+            <Invoices />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/products"
+        element={
+          <ProtectedRoute>
+            <Products />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/expenses"
+        element={
+          <ProtectedRoute>
+            <Expenses />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            <Reports />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/audit"
+        element={
+          <ProtectedRoute>
+            <Audit />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+};
 
-export default App
+const App = () => {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
+export default App;
