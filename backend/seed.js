@@ -24,6 +24,22 @@ const seedUser = async () => {
       console.log('User created: admin@crm.fr / admin123');
     }
     
+    const existingComptable = await User.findOne({ email: 'comptable@crm.fr' });
+    
+    if (existingComptable) {
+      console.log('User already exists:', existingComptable.email);
+    } else {
+      const hashedPasswordComptable = await bcrypt.hash('comptable123', 12);
+      const userComptable = new User({
+        name: 'Comptable',
+        email: 'comptable@crm.fr',
+        password: hashedPasswordComptable,
+        role: 'comptable'
+      });
+      await userComptable.save();
+      console.log('User created: comptable@crm.fr / comptable123');
+    }
+    
     process.exit(0);
   } catch (error) {
     console.error('Error:', error.message);
