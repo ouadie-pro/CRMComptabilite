@@ -167,15 +167,15 @@ const Clients = () => {
 
   const columns = [
     {
-      key: 'name',
+      key: 'companyName',
       header: 'Nom',
       render: (row) => (
         <div className="flex items-center gap-3">
           <div className="size-8 bg-primary/10 rounded-full flex items-center justify-center text-primary text-xs font-bold">
-            {getInitials(row.name)}
+            {getInitials(row.companyName)}
           </div>
           <div>
-            <p className="font-medium">{row.name}</p>
+            <p className="font-medium">{row.companyName}</p>
             <p className="text-xs text-slate-500">{row.email}</p>
           </div>
         </div>

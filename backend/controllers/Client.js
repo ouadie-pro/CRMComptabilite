@@ -1,4 +1,5 @@
 const Client = require('../models/ClientSchema');
+const Invoice = require('../models/InvoiceSchema');
 
 const getAllClients = async (req, res) => {
   try {
@@ -18,7 +19,20 @@ const getAllClients = async (req, res) => {
     }
 
     const clients = await Client.find(query).sort({ createdAt: -1 });
-    res.status(200).json(clients);
+    
+    const clientsWithTotal = await Promise.all(
+      clients.map(async (client) => {
+        const clientObj = client.toObject();
+        const invoiceAgg = await Invoice.aggregate([
+          { $match: { clientId: client._id } },
+          { $group: { _id: null, total: { $sum: '$totalTTC' } } }
+        ]);
+        clientObj.totalBilled = invoiceAgg.length > 0 ? invoiceAgg[0].total : 0;
+        return clientObj;
+      })
+    );
+    
+    res.status(200).json(clientsWithTotal);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
