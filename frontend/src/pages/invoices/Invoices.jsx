@@ -23,7 +23,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
     const fetchClients = async () => {
       try {
         const response = await clientService.getAll({ limit: 100 });
-        setClients(response.data || response);
+        setClients(response);
       } catch (error) {
         console.error('Error fetching clients:', error);
       } finally {
@@ -83,7 +83,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
         <Select label="Client" name="client" value={formData.client} onChange={handleChange} required disabled={loadingClients}>
           <option value="">Sélectionner un client</option>
           {clients.map(client => (
-            <option key={client._id} value={client._id}>{client.name}</option>
+            <option key={client._id} value={client._id}>{client.companyName}</option>
           ))}
         </Select>
         <Input

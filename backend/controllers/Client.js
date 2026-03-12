@@ -38,7 +38,17 @@ const getClientById = async (req, res) => {
 
 const createClient = async (req, res) => {
   try {
-    const client = new Client(req.body);
+    const { name, status, city, country, ...rest } = req.body;
+    const clientData = {
+      companyName: name,
+      contactName: name,
+      contactTitle: 'Client',
+      status: status === 'active' ? 'actif' : 'inactif',
+      city,
+      country,
+      ...rest,
+    };
+    const client = new Client(clientData);
     await client.save();
     res.status(201).json({ message: 'Client created successfully', client });
   } catch (error) {
