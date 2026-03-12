@@ -15,7 +15,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
     status: invoice?.status || 'draft',
     notes: invoice?.notes || '',
   });
-  const [lines, setLines] = useState(invoice?.lines || [{ description: '', quantity: 1, price: 0, vatRate: 20, discount: 0 }]);
+  const [lines, setLines] = useState(invoice?.lines || [{ description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }]);
   const [clients, setClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
@@ -41,13 +41,16 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
     const newLines = [...lines];
     newLines[index][field] = value;
     if (field === 'quantity' || field === 'price' || field === 'discount') {
-      newLines[index].total = (newLines[index].quantity * newLines[index].price) * (1 - newLines[index].discount / 100);
+      const price = parseFloat(newLines[index].price) || 0;
+      const qty = parseInt(newLines[index].quantity) || 0;
+      const discount = parseFloat(newLines[index].discount) || 0;
+      newLines[index].total = (qty * price) * (1 - discount / 100);
     }
     setLines(newLines);
   };
 
   const addLine = () => {
-    setLines([...lines, { description: '', quantity: 1, price: 0, vatRate: 20, discount: 0, total: 0 }]);
+    setLines([...lines, { description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }]);
   };
 
   const removeLine = (index) => {
@@ -57,8 +60,19 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   };
 
   const calculateTotals = () => {
-    const subtotal = lines.reduce((sum, line) => sum + (line.quantity * line.price) * (1 - line.discount / 100), 0);
-    const vat = lines.reduce((sum, line) => sum + (line.quantity * line.price) * (1 - line.discount / 100) * (line.vatRate / 100), 0);
+    const subtotal = lines.reduce((sum, line) => {
+      const price = parseFloat(line.price) || 0;
+      const qty = parseInt(line.quantity) || 0;
+      const discount = parseFloat(line.discount) || 0;
+      return sum + (qty * price) * (1 - discount / 100);
+    }, 0);
+    const vat = lines.reduce((sum, line) => {
+      const price = parseFloat(line.price) || 0;
+      const qty = parseInt(line.quantity) || 0;
+      const discount = parseFloat(line.discount) || 0;
+      const vrate = parseFloat(line.vatRate) || 0;
+      return sum + (qty * price) * (1 - discount / 100) * (vrate / 100);
+    }, 0);
     return { subtotal, vat, total: subtotal + vat };
   };
 
@@ -299,12 +313,23 @@ const Invoices = () => {
       fetchInvoices();
     } catch (error) {
       console.error('Error saving invoice:', error);
+      const msg = error.response?.data?.message || error.response?.data?.errors?.join(', ') || error.message || 'Failed to save invoice';
+      alert(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   const getStatusBadge = (status) => {
+    const statusMap = {
+      'brouillon': 'draft',
+      'envoyé': 'sent',
+      'payé': 'paid',
+      'en_retard': 'overdue',
+      'annulé': 'cancelled'
+    };
+    const mappedStatus = statusMap[status] || status;
+    
     const variants = {
       draft: 'default',
       sent: 'info',
@@ -319,24 +344,24 @@ const Invoices = () => {
       overdue: 'En retard',
       cancelled: 'Annulé',
     };
-    return <Badge variant={variants[status]}>{labels[status]}</Badge>;
+    return <Badge variant={variants[mappedStatus]}>{labels[mappedStatus]}</Badge>;
   };
 
   const columns = [
     {
-      key: 'invoiceNumber',
+      key: 'number',
       header: 'N° Facture',
-      render: (row) => <span className="font-semibold text-primary">{row.invoiceNumber}</span>,
+      render: (row) => <span className="font-semibold text-primary">{row.number}</span>,
     },
     {
-      key: 'client',
+      key: 'clientId',
       header: 'Client',
-      render: (row) => row.client?.name || '-',
+      render: (row) => row.clientId?.companyName || '-',
     },
     {
-      key: 'date',
+      key: 'issueDate',
       header: 'Date',
-      render: (row) => formatDateShort(row.date),
+      render: (row) => formatDateShort(row.issueDate),
     },
     {
       key: 'dueDate',
@@ -344,9 +369,9 @@ const Invoices = () => {
       render: (row) => formatDateShort(row.dueDate),
     },
     {
-      key: 'total',
+      key: 'totalTTC',
       header: 'Montant',
-      render: (row) => formatCurrency(row.total || 0),
+      render: (row) => formatCurrency(row.totalTTC || 0),
     },
     {
       key: 'status',

@@ -41,13 +41,68 @@ const getInvoiceById = async (req, res) => {
 
 const createInvoice = async (req, res) => {
   try {
-    const invoice = new Invoice(req.body);
+    console.log('Invoice data received:', JSON.stringify(req.body));
+    const { client, invoiceNumber, date, dueDate, status, lines = [], ...rest } = req.body;
+    
+    if (!client) {
+      return res.status(400).json({ message: 'Client is required' });
+    }
+    
+    if (lines.length === 0) {
+      return res.status(400).json({ message: 'At least one line is required' });
+    }
+    
+    const statusMap = { draft: 'brouillon', sent: 'envoyé', paid: 'payé', overdue: 'en_retard', cancelled: 'annulé' };
+    
+    const InvoiceLine = require('../models/InvoiceLineSchema');
+    const createdLines = await Promise.all(
+      lines.map(line => 
+        InvoiceLine.create({
+          description: line.description || '',
+          quantity: parseInt(line.quantity) || 1,
+          unitPriceHT: parseFloat(line.price) || 0,
+          vatRate: parseFloat(line.vatRate) || 20,
+          discount: parseFloat(line.discount) || 0,
+          totalHT: (parseInt(line.quantity) || 1) * (parseFloat(line.price) || 0) * (1 - (parseFloat(line.discount) || 0) / 100)
+        })
+      )
+    );
+    
+    const subtotalHT = createdLines.reduce((sum, line) => sum + line.totalHT, 0);
+    const totalVat = createdLines.reduce((sum, line) => sum + (line.totalHT * line.vatRate / 100), 0);
+    const totalTTC = subtotalHT + totalVat;
+    
+    const invoiceData = {
+      number: invoiceNumber || `FACT-${Date.now()}`,
+      clientId: client,
+      issueDate: date ? new Date(date) : new Date(),
+      dueDate: dueDate ? new Date(dueDate) : (date ? new Date(date) : new Date()),
+      status: statusMap[status] || status || 'brouillon',
+      lines: createdLines.map(l => l._id),
+      subtotalHT,
+      totalVat,
+      totalTTC,
+      ...rest
+    };
+    
+    const invoice = new Invoice(invoiceData);
     await invoice.save();
+    
+    await InvoiceLine.updateMany(
+      { _id: { $in: createdLines.map(l => l._id) } },
+      { invoiceId: invoice._id }
+    );
+    
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate('clientId', 'companyName email')
       .populate('lines');
     res.status(201).json({ message: 'Invoice created successfully', invoice: populatedInvoice });
   } catch (error) {
+    console.error('Invoice creation error:', error.message, error.errors);
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => `${key}: ${error.errors[key].message}`);
+      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Invoice number already exists' });
     }
