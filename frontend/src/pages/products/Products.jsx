@@ -11,8 +11,8 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
     sku: product?.sku || '',
     description: product?.description || '',
     category: product?.category || 'service',
-    price: product?.price || 0,
-    cost: product?.cost || 0,
+    price: product?.price || '',
+    cost: product?.cost || '',
     vatRate: product?.vatRate || 20,
     unit: product?.unit || 'unit',
     status: product?.status || 'active',
@@ -191,14 +191,14 @@ const Products = () => {
       key: 'category',
       header: 'Catégorie',
       render: (row) => {
-        const colors = { product: 'info', service: 'warning', license: 'primary' };
-        return <Badge variant={colors[row.category]}>{row.category === 'product' ? 'Matériel' : row.category === 'service' ? 'Service' : 'Licence'}</Badge>;
+        const colors = { matériel: 'info', service: 'warning', license: 'primary' };
+        return <Badge variant={colors[row.category]}>{row.category === 'matériel' ? 'Matériel' : row.category === 'service' ? 'Service' : row.category === 'licence' ? 'Licence' : row.category}</Badge>;
       },
     },
     {
-      key: 'price',
+      key: 'priceHT',
       header: 'Prix HT',
-      render: (row) => formatCurrency(row.price || 0),
+      render: (row) => formatCurrency(row.priceHT || 0),
     },
     {
       key: 'vatRate',
@@ -208,7 +208,7 @@ const Products = () => {
     {
       key: 'status',
       header: 'Statut',
-      render: (row) => <Badge variant={row.status === 'active' ? 'success' : 'default'}>{row.status === 'active' ? 'Actif' : 'Inactif'}</Badge>,
+      render: (row) => <Badge variant={row.status === 'actif' ? 'success' : 'default'}>{row.status === 'actif' ? 'Actif' : 'Inactif'}</Badge>,
     },
     {
       key: 'actions',

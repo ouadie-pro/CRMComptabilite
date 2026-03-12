@@ -29,10 +29,23 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const product = new Product(req.body);
+    const { price, cost, unit, status, ...rest } = req.body;
+    
+    const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
+    const statusMap = { active: 'actif', inactive: 'inactif' };
+    
+    const productData = {
+      ...rest,
+      priceHT: parseFloat(price) || 0,
+      category: categoryMap[rest.category] || rest.category,
+      status: statusMap[status] || status || 'actif'
+    };
+    
+    const product = new Product(productData);
     await product.save();
     res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
+    console.error('Product creation error:', error);
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Product with this SKU already exists' });
     }
@@ -42,9 +55,21 @@ const createProduct = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
+    const { price, cost, unit, status, ...rest } = req.body;
+    
+    const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
+    const statusMap = { active: 'actif', inactive: 'inactif' };
+    
+    const productData = {
+      ...rest,
+      ...(price !== undefined && { priceHT: parseFloat(price) || 0 }),
+      category: categoryMap[rest.category] || rest.category,
+      status: statusMap[status] || status
+    };
+    
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      productData,
       { new: true, runValidators: true }
     );
     if (!product) {
