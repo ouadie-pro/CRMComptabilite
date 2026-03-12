@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getInitials } from '../../utils/formatters';
 import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut } from 'react-icons/fi';
 
-const navItems = [
+const adminNavItems = [
   { path: '/dashboard', icon: FiGrid, label: 'Tableau de bord' },
   { path: '/clients', icon: FiUsers, label: 'Clients' },
   { path: '/invoices', icon: FiFileText, label: 'Factures' },
@@ -14,8 +14,18 @@ const navItems = [
   { path: '/settings', icon: FiSettings, label: 'Paramètres' },
 ];
 
+const comptableNavItems = [
+  { path: '/comptable/dashboard', icon: FiGrid, label: 'Dashboard' },
+  { path: '/invoices', icon: FiFileText, label: 'Factures' },
+  { path: '/expenses', icon: FiDollarSign, label: 'Dépenses' },
+  { path: '/reports', icon: FiBarChart2, label: 'Rapports financiers' },
+];
+
 export const Sidebar = () => {
   const { user, logout } = useAuth();
+  
+  const navItems = user?.role === 'comptable' ? comptableNavItems : adminNavItems;
+  const defaultPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
 
   return (
     <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">

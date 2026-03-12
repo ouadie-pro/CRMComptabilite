@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Logout from './pages/auth/Logout';
 import Dashboard from './pages/dashboard/Dashboard';
+import ComptableDashboard from './pages/comptable/ComptableDashboard';
 import Clients from './pages/clients/Clients';
 import ClientDetail from './pages/clients/ClientDetail';
 import Invoices from './pages/invoices/Invoices';
@@ -32,7 +33,7 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -43,10 +44,17 @@ const PublicRoute = ({ children }) => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    const redirectPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   return children;
+};
+
+const HomeRedirect = () => {
+  const { user } = useAuth();
+  const redirectPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
+  return <Navigate to={redirectPath} replace />;
 };
 
 const AppRoutes = () => {
@@ -71,6 +79,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/comptable/dashboard"
+        element={
+          <ProtectedRoute>
+            <ComptableDashboard />
           </ProtectedRoute>
         }
       />
@@ -147,8 +164,8 @@ const AppRoutes = () => {
         }
       />
       
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<HomeRedirect />} />
+      <Route path="*" element={<HomeRedirect />} />
     </Routes>
   );
 };

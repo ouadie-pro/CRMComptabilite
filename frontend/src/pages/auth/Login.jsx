@@ -8,25 +8,31 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { login, isAuthenticated, loading: authLoading, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      navigate('/dashboard');
+      const role = user?.role;
+      if (role === 'comptable') {
+        navigate('/comptable/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [isAuthenticated, authLoading, navigate]);
+  }, [isAuthenticated, authLoading, navigate, user]);
 
   if (authLoading) {
     return null;
   }
 
   if (isAuthenticated) {
+    const redirectPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
     return (
       <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
         <div className="text-center">
           <p className="text-slate-600 dark:text-slate-300 mb-4">Vous êtes déjà connecté</p>
-          <Button onClick={() => navigate('/dashboard')}>
+          <Button onClick={() => navigate(redirectPath)}>
             Aller au tableau de bord
           </Button>
         </div>
@@ -40,8 +46,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const response = await login(email, password);
+      const userRole = response.user?.role;
+      if (userRole === 'comptable') {
+        navigate('/comptable/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Email ou mot de passe incorrect');
     } finally {
