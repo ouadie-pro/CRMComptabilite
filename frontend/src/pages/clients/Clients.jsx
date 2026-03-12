@@ -8,14 +8,14 @@ import { FiEdit2, FiEye, FiUserPlus, FiSearch } from 'react-icons/fi';
 
 const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
-    name: client?.name || '',
+    name: client?.companyName || '',
     email: client?.email || '',
     phone: client?.phone || '',
     address: client?.address || '',
     city: client?.city || '',
     country: client?.country || '',
     ice: client?.ice || '',
-    status: client?.status || 'active',
+    status: client?.status === 'actif' ? 'active' : 'inactive',
   });
 
   const handleChange = (e) => {
@@ -160,6 +160,7 @@ const Clients = () => {
       fetchClients();
     } catch (error) {
       console.error('Error saving client:', error);
+      alert(error.response?.data?.message || error.message || 'Failed to save client');
     } finally {
       setSubmitting(false);
     }
@@ -198,8 +199,8 @@ const Clients = () => {
       key: 'status',
       header: 'Statut',
       render: (row) => (
-        <Badge variant={row.status === 'active' ? 'success' : 'default'}>
-          {row.status === 'active' ? 'Actif' : 'Inactif'}
+        <Badge variant={row.status === 'actif' ? 'success' : 'default'}>
+          {row.status === 'actif' ? 'Actif' : 'Inactif'}
         </Badge>
       ),
     },

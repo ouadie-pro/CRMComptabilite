@@ -22,12 +22,16 @@ const clientSchema = new mongoose.Schema({
     type: String
     },
     address : {
-        type: String,
-        required: true,
+    type: String,
+    },
+    city: {
+    type: String
+    },
+    country: {
+    type: String
     },
     ice : {
-        type: String,
-        required: true,
+    type: String,
     },
     status: {
         type: String,

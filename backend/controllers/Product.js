@@ -29,7 +29,7 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, ...rest } = req.body;
+    const { price, cost, unit, status, category, ...rest } = req.body;
     
     const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
     const statusMap = { active: 'actif', inactive: 'inactif' };
@@ -37,15 +37,19 @@ const createProduct = async (req, res) => {
     const productData = {
       ...rest,
       priceHT: parseFloat(price) || 0,
-      category: categoryMap[rest.category] || rest.category,
-      status: statusMap[status] || status || 'actif'
+      category: category ? (categoryMap[category] || category) : 'service',
+      status: status ? (statusMap[status] || status) : 'actif'
     };
     
     const product = new Product(productData);
     await product.save();
     res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
-    console.error('Product creation error:', error);
+    console.error('Product creation error:', error.message, error.errors);
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => `${key}: ${error.errors[key].message}`);
+      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Product with this SKU already exists' });
     }
@@ -55,7 +59,7 @@ const createProduct = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, ...rest } = req.body;
+    const { price, cost, unit, status, category, ...rest } = req.body;
     
     const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
     const statusMap = { active: 'actif', inactive: 'inactif' };
@@ -63,8 +67,8 @@ const updateProduct = async (req, res) => {
     const productData = {
       ...rest,
       ...(price !== undefined && { priceHT: parseFloat(price) || 0 }),
-      category: categoryMap[rest.category] || rest.category,
-      status: statusMap[status] || status
+      ...(category && { category: categoryMap[category] || category }),
+      ...(status && { status: statusMap[status] || status })
     };
     
     const product = await Product.findByIdAndUpdate(
@@ -77,6 +81,11 @@ const updateProduct = async (req, res) => {
     }
     res.status(200).json({ message: 'Product updated successfully', product });
   } catch (error) {
+    console.error('Product update error:', error.message, error.errors);
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => `${key}: ${error.errors[key].message}`);
+      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Product with this SKU already exists' });
     }

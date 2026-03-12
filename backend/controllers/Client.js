@@ -75,9 +75,17 @@ const createClient = async (req, res) => {
 
 const updateClient = async (req, res) => {
   try {
+    const { name, status, city, country, ...rest } = req.body;
+    const updateData = {
+      ...rest,
+      ...(name && { companyName: name, contactName: name }),
+      ...(status && { status: status === 'active' ? 'actif' : 'inactif' }),
+      ...(city && { city }),
+      ...(country && { country }),
+    };
     const client = await Client.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     );
     if (!client) {
@@ -85,6 +93,11 @@ const updateClient = async (req, res) => {
     }
     res.status(200).json({ message: 'Client updated successfully', client });
   } catch (error) {
+    console.error('Client update error:', error.message, error.errors);
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.keys(error.errors).map(key => `${key}: ${error.errors[key].message}`);
+      return res.status(400).json({ message: 'Validation error', errors: validationErrors });
+    }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Client with this email already exists' });
     }
