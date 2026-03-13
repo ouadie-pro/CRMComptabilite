@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
-import { Button, Input, Select, DataTable, Badge, Loading } from '../../components/ui';
+import { Button, Select, DataTable, Badge, Loading } from '../../components/ui';
 import { auditLogService } from '../../services';
 import { formatDateTime } from '../../utils/formatters';
 import { FiDownload, FiFileText } from 'react-icons/fi';
@@ -10,18 +10,16 @@ const Audit = () => {
   const [loading, setLoading] = useState(true);
   const [userFilter, setUserFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [periodFilter, setPeriodFilter] = useState('30');
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
       const params = {
-        ...(userFilter !== 'all' && { user: userFilter }),
-        ...(typeFilter !== 'all' && { type: typeFilter }),
-        ...(periodFilter && { days: periodFilter }),
+        ...(userFilter !== 'all' && { userId: userFilter }),
+        ...(typeFilter !== 'all' && { entity: typeFilter }),
       };
       const response = await auditLogService.getAll(params);
-      setLogs(response.data || response);
+      setLogs(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
     } finally {
@@ -31,54 +29,53 @@ const Audit = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [userFilter, typeFilter, periodFilter]);
+  }, [userFilter, typeFilter]);
 
   const columns = [
     {
-      key: 'timestamp',
+      key: 'createdAt',
       header: 'Horodatage',
-      render: (row) => <span className="text-sm">{formatDateTime(row.timestamp || row.createdAt)}</span>,
+      render: (row) => <span className="text-sm">{formatDateTime(row.createdAt)}</span>,
     },
     {
-      key: 'user',
+      key: 'userId',
       header: 'Utilisateur',
       render: (row) => (
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
-            {row.user?.name?.charAt(0) || row.user?.email?.charAt(0) || 'U'}
+            {row.userId?.name?.charAt(0) || row.userId?.email?.charAt(0) || 'U'}
           </div>
-          <span className="text-sm">{row.user?.name || row.user?.email || 'Système'}</span>
+          <span className="text-sm">{row.userId?.name || row.userId?.email || 'Système'}</span>
         </div>
       ),
     },
     {
-      key: 'action',
+      key: 'entity',
       header: 'Catégorie',
       render: (row) => {
-        const colors = { billing: 'info', security: 'warning', client: 'primary', config: 'default', error: 'danger' };
-        return <Badge variant={colors[row.category] || 'default'}>{row.category || row.action}</Badge>;
+        const colors = { Invoice: 'info', Client: 'primary', Product: 'warning', Expense: 'default' };
+        return <Badge variant={colors[row.entity] || 'default'}>{row.entity || '-'}</Badge>;
       },
     },
     {
-      key: 'description',
+      key: 'action',
       header: 'Action',
-      render: (row) => <span className="text-sm font-medium">{row.description || row.action}</span>,
+      render: (row) => <span className="text-sm font-medium">{row.action}</span>,
     },
     {
-      key: 'details',
+      key: 'changes',
       header: 'Détails',
       render: (row) => (
         <div className="text-xs text-slate-500 max-w-xs">
-          {row.details?.before && <div className="text-red-500 line-through">{JSON.stringify(row.details.before)}</div>}
-          {row.details?.after && <div className="text-green-600">{JSON.stringify(row.details.after)}</div>}
-          {!row.details && <span className="italic text-slate-400">N/A</span>}
+          {row.changes && <div className="text-green-600">{JSON.stringify(row.changes)}</div>}
+          {!row.changes && <span className="italic text-slate-400">N/A</span>}
         </div>
       ),
     },
     {
-      key: 'ip',
+      key: 'ipAddress',
       header: 'Adresse IP',
-      render: (row) => <span className="font-mono text-xs text-slate-500">{row.ip || row.ipAddress || '-'}</span>,
+      render: (row) => <span className="font-mono text-xs text-slate-500">{row.ipAddress || '-'}</span>,
     },
   ];
 
@@ -95,15 +92,10 @@ const Audit = () => {
           </Select>
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-48">
             <option value="all">Tous les types</option>
-            <option value="billing">Facturation</option>
-            <option value="security">Sécurité</option>
-            <option value="client">Client</option>
-          </Select>
-          <Select value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)} className="w-48">
-            <option value="1">Aujourd'hui</option>
-            <option value="7">7 derniers jours</option>
-            <option value="30">30 derniers jours</option>
-            <option value="90">90 derniers jours</option>
+            <option value="Client">Client</option>
+            <option value="Invoice">Facture</option>
+            <option value="Product">Produit</option>
+            <option value="Expense">Dépense</option>
           </Select>
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" size="sm">
