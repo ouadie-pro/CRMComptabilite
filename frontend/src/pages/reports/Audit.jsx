@@ -10,6 +10,7 @@ const Audit = () => {
   const [loading, setLoading] = useState(true);
   const [userFilter, setUserFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('all');
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -17,6 +18,7 @@ const Audit = () => {
       const params = {
         ...(userFilter !== 'all' && { userId: userFilter }),
         ...(typeFilter !== 'all' && { entity: typeFilter }),
+        ...(timeFilter !== 'all' && { timeRange: timeFilter }),
       };
       const response = await auditLogService.getAll(params);
       setLogs(Array.isArray(response) ? response : []);
@@ -29,7 +31,7 @@ const Audit = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [userFilter, typeFilter]);
+  }, [userFilter, typeFilter, timeFilter]);
 
   const columns = [
     {
@@ -96,6 +98,13 @@ const Audit = () => {
             <option value="Invoice">Facture</option>
             <option value="Product">Produit</option>
             <option value="Expense">Dépense</option>
+          </Select>
+          <Select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} className="w-48">
+            <option value="all">Tout le temps</option>
+            <option value="day">Aujourd'hui</option>
+            <option value="week">Cette semaine</option>
+            <option value="month">Ce mois</option>
+            <option value="year">Cette année</option>
           </Select>
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" size="sm">
