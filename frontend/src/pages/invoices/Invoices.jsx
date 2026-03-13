@@ -271,13 +271,21 @@ const Invoices = () => {
   const [submitting, setSubmitting] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
 
+  const statusFilterMap = {
+    draft: 'brouillon',
+    sent: 'envoyé',
+    paid: 'payé',
+    overdue: 'en_retard',
+    cancelled: 'annulé'
+  };
+
   const fetchInvoices = async () => {
     setLoading(true);
     try {
       const params = {
         page: pagination.page,
         limit: pagination.limit,
-        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(statusFilter !== 'all' && { status: statusFilterMap[statusFilter] || statusFilter }),
       };
       const response = await invoiceService.getAll(params);
       const data = response.data || response;
