@@ -1,4 +1,5 @@
 const Expense = require('../models/ExpenseSchema');
+const logAudit = require('../utils/auditLogger');
 
 const getAllExpenses = async (req, res) => {
   try {
@@ -37,6 +38,14 @@ const createExpense = async (req, res) => {
   try {
     const expense = new Expense(req.body);
     await expense.save();
+    await logAudit({
+      userId: req.user?._id,
+      action: "create",
+      entity: "Expense",
+      entityId: expense._id,
+      changes: { description: expense.description, amount: expense.amount, category: expense.category },
+      req
+    });
     res.status(201).json({ message: 'Expense created successfully', expense });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -53,6 +62,14 @@ const updateExpense = async (req, res) => {
     if (!expense) {
       return res.status(404).json({ message: 'Expense not found' });
     }
+    await logAudit({
+      userId: req.user?._id,
+      action: "update",
+      entity: "Expense",
+      entityId: expense._id,
+      changes: req.body,
+      req
+    });
     res.status(200).json({ message: 'Expense updated successfully', expense });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -65,6 +82,14 @@ const deleteExpense = async (req, res) => {
     if (!expense) {
       return res.status(404).json({ message: 'Expense not found' });
     }
+    await logAudit({
+      userId: req.user?._id,
+      action: "delete",
+      entity: "Expense",
+      entityId: req.params.id,
+      changes: { message: "Expense deleted" },
+      req
+    });
     res.status(200).json({ message: 'Expense deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

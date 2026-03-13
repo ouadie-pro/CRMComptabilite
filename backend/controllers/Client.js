@@ -1,5 +1,6 @@
 const Client = require('../models/ClientSchema');
 const Invoice = require('../models/InvoiceSchema');
+const logAudit = require('../utils/auditLogger');
 
 const getAllClients = async (req, res) => {
   try {
@@ -64,6 +65,14 @@ const createClient = async (req, res) => {
     };
     const client = new Client(clientData);
     await client.save();
+    await logAudit({
+      userId: req.user?._id,
+      action: "create",
+      entity: "Client",
+      entityId: client._id,
+      changes: { companyName: client.companyName, email: client.email },
+      req
+    });
     res.status(201).json({ message: 'Client created successfully', client });
   } catch (error) {
     if (error.code === 11000) {
@@ -91,6 +100,14 @@ const updateClient = async (req, res) => {
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
+    await logAudit({
+      userId: req.user?._id,
+      action: "update",
+      entity: "Client",
+      entityId: client._id,
+      changes: req.body,
+      req
+    });
     res.status(200).json({ message: 'Client updated successfully', client });
   } catch (error) {
     console.error('Client update error:', error.message, error.errors);
@@ -111,6 +128,14 @@ const deleteClient = async (req, res) => {
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
+    await logAudit({
+      userId: req.user?._id,
+      action: "delete",
+      entity: "Client",
+      entityId: req.params.id,
+      changes: { message: "Client deleted" },
+      req
+    });
     res.status(200).json({ message: 'Client deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

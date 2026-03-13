@@ -5,11 +5,11 @@ import { expenseService } from '../../services';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { FiEdit2, FiPlus } from 'react-icons/fi';
 
-const ExpenseForm = ({ expense, onSubmit, onCancel, loading }) => {
+const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
   const [formData, setFormData] = useState({
     description: expense?.description || '',
-    category: expense?.category || 'general',
-    amount: expense?.amount || 0,
+    category: expense?.category || 'salaire',
+    amount: expense?.amount !== undefined ? String(expense.amount) : '',
     date: expense?.date?.split('T')[0] || new Date().toISOString().split('T')[0],
     vendor: expense?.vendor || '',
     status: expense?.status || 'pending',
@@ -17,25 +17,33 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading }) => {
 
   const handleChange = (e) => {
     const { name, value, type } = e.target;
-    setFormData({ ...formData, [name]: type === 'number' ? parseFloat(value) || 0 : value });
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value 
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    const dataToSubmit = {
+      ...formData,
+      amount: formData.amount === '' ? 0 : formData.amount
+    };
+    onSubmit(dataToSubmit);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md">{error}</div>}
       <Input label="Description" name="description" value={formData.description} onChange={handleChange} required />
       <div className="grid grid-cols-2 gap-4">
         <Select label="Catégorie" name="category" value={formData.category} onChange={handleChange}>
-          <option value="salaries">Salaires</option>
-          <option value="rent">Loyer</option>
-          <option value="marketing">Marketing</option>
-          <option value="software">Logiciels</option>
-          <option value="logistics">Logistique</option>
-          <option value="other">Divers</option>
+          <option value="salaire">Salaire</option>
+          <option value="loyer">Loyer</option>
+          <option value="services">Services</option>
+          <option value="fournitures">Fournitures</option>
+          <option value="transport">Transport</option>
+          <option value="autre">Autre</option>
         </Select>
         <Input label="Montant" name="amount" type="number" step="0.01" value={formData.amount} onChange={handleChange} required />
       </div>
@@ -63,6 +71,7 @@ const Expenses = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -81,13 +90,15 @@ const Expenses = () => {
 
   const handleSubmit = async (data) => {
     setSubmitting(true);
+    setError(null);
     try {
       if (editingExpense) await expenseService.update(editingExpense._id, data);
       else await expenseService.create(data);
       setShowModal(false);
       fetchExpenses();
-    } catch (error) {
-      console.error('Error saving expense:', error);
+    } catch (err) {
+      console.error('Error saving expense:', err);
+      setError(err.response?.data?.message || 'Erreur lors de l\'enregistrement');
     } finally {
       setSubmitting(false);
     }
@@ -104,21 +115,21 @@ const Expenses = () => {
   ];
 
   return (
-    <PageLayout title="Dépenses" actions={<Button onClick={() => setShowModal(true)}><FiPlus />Nouvelle Dépense</Button>}>
+    <PageLayout title="Dépenses" actions={<Button onClick={() => { setEditingExpense(null); setShowModal(true); }}><FiPlus />Nouvelle Dépense</Button>}>
       <div className="space-y-6">
         <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
           <option value="all">Toutes catégories</option>
-          <option value="salaries">Salaires</option>
-          <option value="rent">Loyer</option>
-          <option value="marketing">Marketing</option>
-          <option value="software">Logiciels</option>
-          <option value="logistics">Logistique</option>
-          <option value="other">Divers</option>
+          <option value="salaire">Salaire</option>
+          <option value="loyer">Loyer</option>
+          <option value="services">Services</option>
+          <option value="fournitures">Fournitures</option>
+          <option value="transport">Transport</option>
+          <option value="autre">Autre</option>
         </Select>
         {loading ? <div className="flex items-center justify-center h-64"><Loading size="lg" /></div> : <DataTable columns={columns} data={expenses} emptyMessage="Aucune dépense" />}
       </div>
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingExpense ? 'Modifier' : 'Nouvelle dépense'}>
-        <ExpenseForm expense={editingExpense} onSubmit={handleSubmit} onCancel={() => setShowModal(false)} loading={submitting} />
+      <Modal isOpen={showModal} onClose={() => { setShowModal(false); setError(null); }} title={editingExpense ? 'Modifier' : 'Nouvelle dépense'}>
+        <ExpenseForm expense={editingExpense} onSubmit={handleSubmit} onCancel={() => { setShowModal(false); setError(null); }} loading={submitting} error={error} />
       </Modal>
     </PageLayout>
   );
