@@ -112,17 +112,20 @@ const Clients = () => {
     totalPages: 0,
   });
 
+  const statusFilterMap = {
+    active: 'actif',
+    inactive: 'inactif'
+  };
+
   const fetchClients = async () => {
     setLoading(true);
     try {
       const params = {
-        page: pagination.page,
-        limit: pagination.limit,
         ...(search && { search }),
-        ...(statusFilter !== 'all' && { status: statusFilter }),
+        ...(statusFilter !== 'all' && { status: statusFilterMap[statusFilter] || statusFilter }),
       };
       const response = await clientService.getAll(params);
-      const data = response.data || response;
+      const data = Array.isArray(response) ? response : (response.data || []);
       setClients(data);
       if (response.pagination) {
         setPagination(prev => ({ ...prev, ...response.pagination }));
