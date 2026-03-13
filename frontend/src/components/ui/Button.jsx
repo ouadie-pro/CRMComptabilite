@@ -7,7 +7,7 @@ export const Button = ({
   className = '',
   ...props 
 }) => {
-  const baseClasses = 'inline-flex items-center justify-center font-bold rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseClasses = 'inline-flex items-center justify-center font-bold rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 whitespace-nowrap';
   
   const variants = {
     primary: 'bg-primary text-white hover:bg-primary/90 focus:ring-primary shadow-sm',
@@ -18,9 +18,9 @@ export const Button = ({
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-sm gap-1.5',
-    md: 'px-4 py-2 text-sm gap-2',
-    lg: 'px-5 py-2.5 text-base gap-2',
+    sm: 'px-2 md:px-3 py-1 text-xs md:py-1.5 md:text-sm gap-1 md:gap-1.5',
+    md: 'px-3 md:px-4 py-2 text-sm gap-2',
+    lg: 'px-4 md:px-5 py-2 text-base gap-2',
   };
 
   return (

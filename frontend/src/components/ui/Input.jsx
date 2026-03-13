@@ -23,7 +23,7 @@ export const Input = ({
             w-full rounded-lg border border-slate-300 dark:border-slate-700 
             bg-white dark:bg-slate-800 text-slate-900 dark:text-white 
             focus:ring-2 focus:ring-primary focus:border-transparent 
-            transition-all outline-none py-2.5 px-4
+            transition-all outline-none py-2 px-3 md:py-2.5 md:px-4 text-sm md:text-base
             ${icon ? 'pl-10' : ''}
             ${error ? 'border-red-500 focus:ring-red-500' : ''}
             ${className}
@@ -57,7 +57,7 @@ export const Select = ({
           w-full rounded-lg border border-slate-300 dark:border-slate-700 
           bg-white dark:bg-slate-800 text-slate-900 dark:text-white 
           focus:ring-2 focus:ring-primary focus:border-transparent 
-          transition-all outline-none py-2.5 px-4
+          transition-all outline-none py-2 px-3 md:py-2.5 md:px-4 text-sm md:text-base
           ${error ? 'border-red-500 focus:ring-red-500' : ''}
           ${className}
         `}
@@ -90,7 +90,7 @@ export const Textarea = ({
           w-full rounded-lg border border-slate-300 dark:border-slate-700 
           bg-white dark:bg-slate-800 text-slate-900 dark:text-white 
           focus:ring-2 focus:ring-primary focus:border-transparent 
-          transition-all outline-none py-2.5 px-4
+          transition-all outline-none py-2 px-3 md:py-2.5 md:px-4 text-sm md:text-base
           ${error ? 'border-red-500 focus:ring-red-500' : ''}
           ${className}
         `}

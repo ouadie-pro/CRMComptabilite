@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getInitials } from '../../utils/formatters';
-import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut } from 'react-icons/fi';
+import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut, FiX } from 'react-icons/fi';
 
 const adminNavItems = [
   { path: '/dashboard', icon: FiGrid, label: 'Tableau de bord' },
@@ -21,7 +21,7 @@ const comptableNavItems = [
   { path: '/reports', icon: FiBarChart2, label: 'Rapports financiers' },
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({ onClose }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -29,15 +29,20 @@ export const Sidebar = () => {
   const defaultPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
 
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+    <aside className="w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-full">
       <div className="p-6 flex items-center gap-3">
         <div className="size-10 bg-primary rounded-lg flex items-center justify-center text-white">
           <FiBriefcase />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-primary dark:text-white text-base font-bold leading-tight">CRM Comptabilité</h1>
           <p className="text-slate-500 dark:text-slate-400 text-xs">Gestion Financière</p>
         </div>
+        {onClose && (
+          <button onClick={onClose} className="lg:hidden p-1 text-slate-500 hover:text-slate-700">
+            <FiX className="text-xl" />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
@@ -45,6 +50,7 @@ export const Sidebar = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                 isActive

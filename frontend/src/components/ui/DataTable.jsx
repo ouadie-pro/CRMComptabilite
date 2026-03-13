@@ -40,21 +40,21 @@ export const DataTable = ({
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+        <table className="w-full text-left border-collapse min-w-full">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   className={`
-                    px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500
+                    px-3 md:px-6 py-3 md:py-4 text-xs font-bold uppercase tracking-wider text-slate-500
                     ${column.sortable ? 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800' : ''}
                     ${column.className || ''}
                   `}
                   style={{ width: column.width }}
                   onClick={() => handleSort(column)}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 whitespace-nowrap">
                     {column.header}
                     {column.sortable && sortColumn === column.key && (
                       <span className="text-sm">
@@ -69,13 +69,15 @@ export const DataTable = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="px-6 py-12">
-                  <Loading />
+                <td colSpan={columns.length} className="px-3 md:px-6 py-8 md:py-12">
+                  <div className="flex justify-center">
+                    <Loading />
+                  </div>
                 </td>
               </tr>
             ) : sortedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={columns.length} className="px-3 md:px-6 py-8 md:py-12 text-center text-slate-500">
                   {emptyMessage}
                 </td>
               </tr>
@@ -92,7 +94,7 @@ export const DataTable = ({
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className={`px-6 py-4 text-sm text-slate-600 dark:text-slate-400 ${column.className || ''}`}
+                      className={`px-3 md:px-6 py-3 md:py-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap ${column.className || ''}`}
                     >
                       {column.render ? column.render(row) : row[column.key]}
                     </td>
@@ -105,15 +107,15 @@ export const DataTable = ({
       </div>
       
       {pagination && (
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            Affichage de {pagination.page * pagination.limit - pagination.limit + 1} à {Math.min(pagination.page * pagination.limit, pagination.total)} sur {pagination.total}
+        <div className="px-3 md:px-6 py-3 md:py-4 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs md:text-sm text-slate-500">
+            {pagination.total > 0 && `Affichage de ${pagination.page * pagination.limit - pagination.limit + 1} à ${Math.min(pagination.page * pagination.limit, pagination.total)} sur ${pagination.total}`}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={() => pagination.onPageChange(pagination.page - 1)}
               disabled={pagination.page === 1}
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="p-1 md:p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               <FiChevronLeft className="text-sm" />
             </button>
@@ -121,7 +123,7 @@ export const DataTable = ({
               <button
                 key={page}
                 onClick={() => pagination.onPageChange(page)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                className={`px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-medium ${
                   page === pagination.page
                     ? 'bg-primary text-white'
                     : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -133,7 +135,7 @@ export const DataTable = ({
             <button
               onClick={() => pagination.onPageChange(pagination.page + 1)}
               disabled={pagination.page === pagination.totalPages}
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="p-1 md:p-2 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               <FiChevronRight className="text-sm" />
             </button>

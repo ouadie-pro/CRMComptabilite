@@ -68,18 +68,18 @@ const Login = () => {
       </div>
 
       <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-10">
+        <div className="flex flex-col items-center mb-8 md:mb-10">
           <div className="bg-primary text-white p-3 rounded-xl shadow-lg mb-4">
-            <FiBriefcase className="text-4xl" />
+            <FiBriefcase className="text-3xl md:text-4xl" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-primary dark:text-slate-100">CRM Comptabilité</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-2">Gestion financière simplifiée</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-primary dark:text-slate-100">CRM Comptabilité</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-center">Gestion financière simplifiée</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="p-8">
-            <div className="mb-8">
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Connexion</h2>
+          <div className="p-6 md:p-8">
+            <div className="mb-6 md:mb-8">
+              <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white">Connexion</h2>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Accédez à votre espace comptable sécurisé</p>
             </div>
 
