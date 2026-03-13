@@ -95,7 +95,7 @@ const updateClient = async (req, res) => {
     const client = await Client.findByIdAndUpdate(
       req.params.id,
       updateData,
-      { new: true, runValidators: true }
+      { new: true, runValidators: false }
     );
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });

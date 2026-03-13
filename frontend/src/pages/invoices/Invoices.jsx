@@ -10,14 +10,26 @@ import autoTable from 'jspdf-autotable';
 
 const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
-    client: invoice?.client?._id || '',
-    invoiceNumber: invoice?.invoiceNumber || '',
-    date: invoice?.date?.split('T')[0] || new Date().toISOString().split('T')[0],
+    client: invoice?.clientId?._id || invoice?.client?._id || '',
+    invoiceNumber: invoice?.number || invoice?.invoiceNumber || '',
+    date: invoice?.issueDate?.split('T')[0] || invoice?.date?.split('T')[0] || new Date().toISOString().split('T')[0],
     dueDate: invoice?.dueDate?.split('T')[0] || '',
-    status: invoice?.status || 'draft',
+    status: invoice?.status || 'brouillon',
     notes: invoice?.notes || '',
   });
-  const [lines, setLines] = useState(invoice?.lines || [{ description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }]);
+  const [lines, setLines] = useState(() => {
+    if (invoice?.lines?.length > 0) {
+      return invoice.lines.map(line => ({
+        description: line.description || '',
+        quantity: line.quantity || 1,
+        price: line.unitPriceHT || line.price || '',
+        vatRate: line.vatRate || 20,
+        discount: line.discount || 0,
+        total: line.totalHT || line.total || 0,
+      }));
+    }
+    return [{ description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }];
+  });
   const [clients, setClients] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
 
@@ -86,11 +98,11 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   };
 
   const statusOptions = [
-    { value: 'draft', label: 'Brouillon' },
-    { value: 'sent', label: 'Envoyé' },
-    { value: 'paid', label: 'Payé' },
-    { value: 'overdue', label: 'En retard' },
-    { value: 'cancelled', label: 'Annulé' },
+    { value: 'brouillon', label: 'Brouillon' },
+    { value: 'envoyé', label: 'Envoyé' },
+    { value: 'payé', label: 'Payé' },
+    { value: 'en_retard', label: 'En retard' },
+    { value: 'annulé', label: 'Annulé' },
   ];
 
   return (
@@ -314,10 +326,19 @@ const Invoices = () => {
   const handleSubmit = async (data) => {
     setSubmitting(true);
     try {
+      const submitData = {
+        clientId: data.client,
+        number: data.invoiceNumber,
+        date: data.date,
+        dueDate: data.dueDate,
+        status: data.status,
+        lines: data.lines,
+        notes: data.notes,
+      };
       if (editingInvoice) {
-        await invoiceService.update(editingInvoice._id, data);
+        await invoiceService.update(editingInvoice._id, submitData);
       } else {
-        await invoiceService.create(data);
+        await invoiceService.create(submitData);
       }
       setShowModal(false);
       fetchInvoices();

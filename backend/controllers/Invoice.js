@@ -121,16 +121,70 @@ const createInvoice = async (req, res) => {
 
 const updateInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    )
-      .populate('clientId', 'companyName email')
-      .populate('lines');
-    if (!invoice) {
+    const { clientId, number, date, dueDate, status, lines, notes } = req.body;
+    
+    const existingInvoice = await Invoice.findById(req.params.id);
+    if (!existingInvoice) {
       return res.status(404).json({ message: 'Invoice not found' });
     }
+
+    const InvoiceLine = require('../models/InvoiceLineSchema');
+
+    if (lines && Array.isArray(lines)) {
+      await InvoiceLine.deleteMany({ _id: { $in: existingInvoice.lines } });
+      
+      const createdLines = await Promise.all(
+        lines.map(line => 
+          InvoiceLine.create({
+            description: line.description || '',
+            quantity: parseInt(line.quantity) || 1,
+            unitPriceHT: parseFloat(line.price) || 0,
+            vatRate: parseFloat(line.vatRate) || 20,
+            discount: parseFloat(line.discount) || 0,
+            totalHT: (parseInt(line.quantity) || 1) * (parseFloat(line.price) || 0) * (1 - (parseFloat(line.discount) || 0) / 100)
+          })
+        )
+      );
+
+      const subtotalHT = createdLines.reduce((sum, line) => sum + line.totalHT, 0);
+      const totalVat = createdLines.reduce((sum, line) => sum + (line.totalHT * line.vatRate / 100), 0);
+      const totalTTC = subtotalHT + totalVat;
+
+      const updateData = {
+        ...(clientId && { clientId }),
+        ...(number && { number }),
+        ...(date && { issueDate: new Date(date) }),
+        ...(dueDate && { dueDate: new Date(dueDate) }),
+        ...(status && { status }),
+        ...(notes !== undefined && { notes }),
+        lines: createdLines.map(l => l._id),
+        subtotalHT,
+        totalVat,
+        totalTTC,
+      };
+
+      await InvoiceLine.updateMany(
+        { _id: { $in: createdLines.map(l => l._id) } },
+        { invoiceId: existingInvoice._id }
+      );
+
+      var invoice = await Invoice.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      )
+        .populate('clientId', 'companyName email')
+        .populate('lines');
+    } else {
+      var invoice = await Invoice.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true, runValidators: true }
+      )
+        .populate('clientId', 'companyName email')
+        .populate('lines');
+    }
+
     await logAudit({
       userId: req.user?._id,
       action: "update",

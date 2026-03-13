@@ -39,6 +39,7 @@ const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'primary'
 const Dashboard = () => {
   const [stats, setStats] = useState({
     monthlyRevenue: 0,
+    recoveryRate: 0,
     pendingInvoices: 0,
     totalReceivables: 0,
     activeClients: 0,
@@ -51,30 +52,51 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
         const [clientsRes, invoicesRes] = await Promise.all([
-          clientService.getAll({ limit: 5, sort: '-createdAt' }),
-          invoiceService.getAll({ limit: 5, sort: '-createdAt' }),
+          clientService.getAll(),
+          invoiceService.getAll(),
         ]);
 
-        const clients = clientsRes.data || clientsRes;
-        const invoices = invoicesRes.data || invoicesRes;
+        const allClients = clientsRes.data || clientsRes;
+        const allInvoices = invoicesRes.data || invoicesRes;
 
-        const totalReceivables = invoices
-          .filter(inv => inv.status === 'sent' || inv.status === 'overdue')
-          .reduce((sum, inv) => sum + (inv.total || 0), 0);
+        const currentMonthInvoices = allInvoices.filter(
+          inv => new Date(inv.issueDate) >= startOfMonth
+        );
+        const monthlyRevenue = currentMonthInvoices.reduce(
+          (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
+        );
 
-        const pendingCount = invoices.filter(inv => inv.status === 'sent').length;
+        const totalInvoices = allInvoices.length;
+        const paidInvoices = allInvoices.filter(inv => inv.status === 'payé').length;
+        const recoveryRate = totalInvoices > 0 ? Math.round((paidInvoices / totalInvoices) * 100) : 0;
+
+        const unpaidInvoices = allInvoices.filter(
+          inv => inv.status === 'envoyé' || inv.status === 'en_retard'
+        );
+        const pendingInvoices = unpaidInvoices.length;
+        const totalReceivables = unpaidInvoices.reduce(
+          (sum, inv) => sum + (inv.totalTTC || 0), 0
+        );
+
+        const activeClients = allClients.filter(
+          client => client.status === 'actif'
+        ).length;
 
         setStats({
-          monthlyRevenue: 45200,
-          pendingInvoices: pendingCount,
-          totalReceivables: totalReceivables || 12400,
-          activeClients: clients.length || 1240,
-          monthlyExpenses: 15300,
+          monthlyRevenue,
+          recoveryRate,
+          pendingInvoices,
+          totalReceivables,
+          activeClients,
+          monthlyExpenses: 0,
         });
 
-        setRecentInvoices(invoices);
-        setRecentClients(clients);
+        setRecentInvoices(allInvoices.slice(0, 5));
+        setRecentClients(allClients.slice(0, 5));
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -105,12 +127,11 @@ const Dashboard = () => {
             value={formatCurrency(stats.monthlyRevenue)}
             subtitle="Ce mois"
             icon={FiDollarSign}
-            trend={12.5}
             color="primary"
           />
           <StatCard
             title="Recouvrement"
-            value="92%"
+            value={`${stats.recoveryRate}%`}
             subtitle="Objectif: 95%"
             icon={FiCheckCircle}
             color="success"
@@ -118,14 +139,14 @@ const Dashboard = () => {
           <StatCard
             title="Créances Totales"
             value={formatCurrency(stats.totalReceivables)}
-            subtitle="32 factures impayées"
+            subtitle={`${stats.pendingInvoices} facture${stats.pendingInvoices !== 1 ? 's' : ''} impayée${stats.pendingInvoices !== 1 ? 's' : ''}`}
             icon={FiAlertCircle}
             color="danger"
           />
           <StatCard
             title="Clients Actifs"
             value={stats.activeClients.toLocaleString()}
-            subtitle="+8% ce mois"
+            subtitle="Total clients"
             icon={FiUsers}
             color="primary"
           />
