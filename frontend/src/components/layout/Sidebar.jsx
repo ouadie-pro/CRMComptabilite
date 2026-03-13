@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getInitials } from '../../utils/formatters';
 import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut } from 'react-icons/fi';
@@ -22,7 +22,8 @@ const comptableNavItems = [
 ];
 
 export const Sidebar = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   
   const navItems = user?.role === 'comptable' ? comptableNavItems : adminNavItems;
   const defaultPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
@@ -68,7 +69,7 @@ export const Sidebar = () => {
             <p className="text-xs text-slate-500 truncate capitalize">{user?.role || 'Utilisateur'}</p>
           </div>
           <button
-            onClick={logout}
+            onClick={() => navigate('/logout')}
             className="flex items-center gap-1 text-slate-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
           >
             <FiLogOut className="text-lg" />

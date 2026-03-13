@@ -4,7 +4,9 @@ import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../components/ui';
 import { invoiceService, clientService, productService } from '../../services';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiTrash2, FiPlus, FiEdit2, FiMoreVertical } from 'react-icons/fi';
+import { FiTrash2, FiPlus, FiEdit2, FiDownload } from 'react-icons/fi';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
@@ -347,6 +349,58 @@ const Invoices = () => {
     return <Badge variant={variants[mappedStatus]}>{labels[mappedStatus]}</Badge>;
   };
 
+  const generatePDF = (invoice) => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(20);
+    doc.text(`Facture ${invoice.number}`, 14, 22);
+    
+    doc.setFontSize(10);
+    doc.text(`Client: ${invoice.clientId?.companyName || '-'}`, 14, 35);
+    doc.text(`Date d'émission: ${formatDateShort(invoice.issueDate)}`, 14, 42);
+    doc.text(`Date d'échéance: ${formatDateShort(invoice.dueDate)}`, 14, 49);
+    
+    const tableData = (invoice.lines || []).map(line => [
+      (line.description || '-').replace(/\n/g, ' '),
+      line.quantity || 0,
+      formatCurrency(line.unitPriceHT || line.price || 0),
+      `${line.vatRate || 0}%`,
+      `${line.discount || 0}%`,
+      formatCurrency(line.totalHT || 0)
+    ]);
+    
+    autoTable(doc, {
+      startY: 60,
+      head: [['Description', 'Qté', 'Prix Unit.', 'TVA %', 'Remise %', 'Total']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [66, 66, 66] },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 30, halign: 'right' },
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 25, halign: 'center' },
+        5: { cellWidth: 30, halign: 'right' }
+      },
+      didDrawPage: (data) => {
+        data.cursor.y = data.cursor.y;
+      }
+    });
+    
+    const finalY = (doc.lastAutoTable?.finalY || 60) + 10;
+    
+    doc.setFontSize(10);
+    doc.text(`Sous-total HT: ${formatCurrency(invoice.subtotalHT || 0)}`, 140, finalY, { align: 'right' });
+    doc.text(`TVA: ${formatCurrency(invoice.totalVat || 0)}`, 140, finalY + 7, { align: 'right' });
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total TTC: ${formatCurrency(invoice.totalTTC || 0)}`, 140, finalY + 16, { align: 'right' });
+    
+    const fileName = `${invoice.number || 'invoice'}.pdf`;
+    doc.save(fileName);
+  };
+
   const columns = [
     {
       key: 'number',
@@ -384,11 +438,11 @@ const Invoices = () => {
       width: '100px',
       render: (row) => (
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => generatePDF(row)} title="Télécharger PDF">
+            <FiDownload className="text-sm" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
             <FiEdit2 className="text-sm" />
-          </Button>
-          <Button variant="ghost" size="sm">
-            <FiMoreVertical className="text-sm" />
           </Button>
         </div>
       ),

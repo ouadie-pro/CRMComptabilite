@@ -6,6 +6,14 @@ export const authService = {
     return response.data;
   },
 
+  logout: async () => {
+    try {
+      await api.post('/users/logout');
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    }
+  },
+
   register: async (userData) => {
     const response = await api.post('/users/register', userData);
     return response.data;

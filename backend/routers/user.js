@@ -3,6 +3,7 @@ const Router = express.Router();
 const {
   registerUser,
   loginUser,
+  logoutUser,
   getAllUsers,
   getUserById,
   updateUser,
@@ -13,6 +14,7 @@ const {
 
 Router.post('/register', registerUser);
 Router.post('/login', loginUser);
+Router.post('/logout', authMiddleware, logoutUser);
 
 Router.use(authMiddleware);
 
