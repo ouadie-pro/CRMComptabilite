@@ -129,12 +129,18 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const categoryFilterMap = {
+    product: 'matériel',
+    service: 'service',
+    license: 'licence'
+  };
+
   const fetchProducts = async () => {
     setLoading(true);
     try {
       const params = {
         ...(search && { search }),
-        ...(categoryFilter !== 'all' && { category: categoryFilter }),
+        ...(categoryFilter !== 'all' && { category: categoryFilterMap[categoryFilter] || categoryFilter }),
       };
       const response = await productService.getAll(params);
       setProducts(response.data || response);
