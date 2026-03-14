@@ -15,6 +15,7 @@ const Reports = () => {
     activeClients: 0,
   });
   const [recentTransactions, setRecentTransactions] = useState([]);
+  const [monthlyData, setMonthlyData] = useState([]);
 
   useEffect(() => {
     const fetchReportsData = async () => {
@@ -56,12 +57,43 @@ const Reports = () => {
           activeClients: activeClients,
         });
 
+        const months = [];
+        const now = new Date();
+        for (let i = 5; i >= 0; i--) {
+          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const monthKey = date.toLocaleString('default', { month: 'short' });
+          months.push({
+            label: monthKey.charAt(0).toUpperCase() + monthKey.slice(1),
+            start: new Date(date.getFullYear(), date.getMonth(), 1),
+            end: new Date(date.getFullYear(), date.getMonth() + 1, 0),
+          });
+        }
+
+        const chartData = months.map(month => {
+          const monthInvoices = allInvoices.filter(inv => {
+            const invDate = new Date(inv.issueDate || inv.date);
+            return invDate >= month.start && invDate <= month.end;
+          });
+          const monthExpenses = allExpenses.filter(exp => {
+            const expDate = new Date(exp.date);
+            return expDate >= month.start && expDate <= month.end;
+          });
+          return {
+            month: month.label,
+            revenue: monthInvoices.reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0),
+            expenses: monthExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0),
+          };
+        });
+
+        setMonthlyData(chartData);
+
         const transactions = [
           ...allInvoices.slice(0, 5).map(inv => ({
             client: inv.client?.name || 'Client',
             type: 'Revenu',
             amount: inv.totalTTC || inv.total || 0,
             status: inv.status === 'payé' ? 'paid' : 'pending',
+            rawDate: new Date(inv.issueDate || inv.date),
             date: new Date(inv.issueDate || inv.date).toLocaleDateString('fr-FR'),
           })),
           ...allExpenses.slice(0, 5).map(exp => ({
@@ -69,9 +101,10 @@ const Reports = () => {
             type: 'Dépense',
             amount: -(exp.amount || 0),
             status: 'paid',
+            rawDate: new Date(exp.date),
             date: new Date(exp.date).toLocaleDateString('fr-FR'),
           })),
-        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+        ].sort((a, b) => b.rawDate - a.rawDate).slice(0, 8);
 
         setRecentTransactions(transactions);
       } catch (error) {
@@ -132,23 +165,36 @@ const Reports = () => {
           ))}
         </div>
 
-        {/* Chart Placeholder */}
+        {/* Chart */}
         <Card title="Revenus vs Dépenses">
-          <div className="h-80 flex items-end justify-between gap-4 px-4">
-            {['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'].map((month, i) => (
-              <div key={month} className="flex-1 flex flex-col items-center gap-3">
-                <div className="w-full flex justify-center items-end gap-1 h-64">
-                  <div className="w-8 bg-primary rounded-t-sm" style={{ height: `${60 + i * 8}%` }}></div>
-                  <div className="w-8 bg-slate-200 dark:bg-slate-700 rounded-t-sm" style={{ height: `${40 + i * 6}%` }}></div>
-                </div>
-                <span className="text-xs font-bold text-slate-500">{month}</span>
+          {monthlyData.length === 0 ? (
+            <p className="text-slate-500 text-center py-8">Aucune donnée disponible</p>
+          ) : (
+            <>
+              <div className="h-80 flex items-end justify-between gap-4 px-4">
+                {(() => {
+                  const maxValue = Math.max(...monthlyData.map(d => Math.max(d.revenue, d.expenses)), 1);
+                  return monthlyData.map((data, i) => {
+                    const revenueHeight = maxValue > 0 ? (data.revenue / maxValue) * 100 : 0;
+                    const expenseHeight = maxValue > 0 ? (data.expenses / maxValue) * 100 : 0;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-3">
+                        <div className="w-full flex justify-center items-end gap-1 h-64">
+                          <div className="w-8 bg-primary rounded-t-sm transition-all duration-300" style={{ height: `${Math.max(revenueHeight, 2)}%` }}></div>
+                          <div className="w-8 bg-slate-200 dark:bg-slate-700 rounded-t-sm transition-all duration-300" style={{ height: `${Math.max(expenseHeight, 2)}%` }}></div>
+                        </div>
+                        <span className="text-xs font-bold text-slate-500">{data.month}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
-            ))}
-          </div>
-          <div className="flex justify-center gap-8 mt-4 text-xs font-medium">
-            <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-primary"></span> Revenus</div>
-            <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-slate-400"></span> Dépenses</div>
-          </div>
+              <div className="flex justify-center gap-8 mt-4 text-xs font-medium">
+                <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-primary"></span> Revenus</div>
+                <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-slate-400"></span> Dépenses</div>
+              </div>
+            </>
+          )}
         </Card>
 
         {/* Recent Transactions */}
