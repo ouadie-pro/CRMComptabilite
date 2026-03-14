@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Badge, Loading } from '../../components/ui';
-import { clientService, invoiceService } from '../../services';
+import { clientService, invoiceService, expenseService } from '../../services';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiCheckCircle, FiAlertCircle, FiUsers, FiShoppingCart } from 'react-icons/fi';
 
@@ -55,19 +55,28 @@ const Dashboard = () => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         
-        const [clientsRes, invoicesRes] = await Promise.all([
+        const [clientsRes, invoicesRes, expensesRes] = await Promise.all([
           clientService.getAll(),
           invoiceService.getAll(),
+          expenseService.getAll(),
         ]);
 
         const allClients = clientsRes.data || clientsRes;
         const allInvoices = invoicesRes.data || invoicesRes;
+        const allExpenses = expensesRes.data || expensesRes;
 
         const currentMonthInvoices = allInvoices.filter(
           inv => new Date(inv.issueDate) >= startOfMonth
         );
         const monthlyRevenue = currentMonthInvoices.reduce(
           (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
+        );
+
+        const currentMonthExpenses = allExpenses.filter(
+          exp => new Date(exp.date) >= startOfMonth
+        );
+        const monthlyExpenses = currentMonthExpenses.reduce(
+          (sum, exp) => sum + (exp.amount || 0), 0
         );
 
         const totalInvoices = allInvoices.length;
@@ -92,7 +101,7 @@ const Dashboard = () => {
           pendingInvoices,
           totalReceivables,
           activeClients,
-          monthlyExpenses: 0,
+          monthlyExpenses,
         });
 
         setRecentInvoices(allInvoices.slice(0, 5));

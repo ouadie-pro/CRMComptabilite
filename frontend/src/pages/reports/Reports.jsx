@@ -1,15 +1,88 @@
+import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
-import { Card, Badge } from '../../components/ui';
+import { Card, Badge, Loading } from '../../components/ui';
+import { invoiceService, clientService, expenseService } from '../../services';
 import { formatCurrency } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase } from 'react-icons/fi';
 
 const Reports = () => {
-  const stats = [
-    { title: 'Revenu Total', value: 45250, change: 12, type: 'revenue' },
-    { title: 'Dépenses Totales', value: 32100, change: 5, type: 'expense' },
-    { title: 'Bénéfice Net', value: 13150, change: 18, type: 'profit' },
-    { title: 'Flux de Trésorerie', value: 8400, change: -2, type: 'cashflow' },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    revenue: 0,
+    expenses: 0,
+    profit: 0,
+    cashflow: 0,
+    activeClients: 0,
+  });
+  const [recentTransactions, setRecentTransactions] = useState([]);
+
+  useEffect(() => {
+    const fetchReportsData = async () => {
+      try {
+        const [invoicesRes, clientsRes, expensesRes] = await Promise.all([
+          invoiceService.getAll(),
+          clientService.getAll(),
+          expenseService.getAll(),
+        ]);
+
+        const allInvoices = invoicesRes.data || invoicesRes;
+        const allClients = clientsRes.data || clientsRes;
+        const allExpenses = expensesRes.data || expensesRes;
+
+        const totalRevenue = allInvoices.reduce(
+          (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
+        );
+
+        const totalExpenses = allExpenses.reduce(
+          (sum, exp) => sum + (exp.amount || 0), 0
+        );
+
+        const netProfit = totalRevenue - totalExpenses;
+
+        const paidInvoices = allInvoices.filter(inv => inv.status === 'payé');
+        const cashflow = paidInvoices.reduce(
+          (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
+        );
+
+        const activeClients = allClients.filter(
+          client => client.status === 'actif'
+        ).length;
+
+        setStats({
+          revenue: totalRevenue,
+          expenses: totalExpenses,
+          profit: netProfit,
+          cashflow: cashflow,
+          activeClients: activeClients,
+        });
+
+        const transactions = [
+          ...allInvoices.slice(0, 5).map(inv => ({
+            client: inv.client?.name || 'Client',
+            type: 'Revenu',
+            amount: inv.totalTTC || inv.total || 0,
+            status: inv.status === 'payé' ? 'paid' : 'pending',
+            date: new Date(inv.issueDate || inv.date).toLocaleDateString('fr-FR'),
+          })),
+          ...allExpenses.slice(0, 5).map(exp => ({
+            client: exp.description || 'Dépense',
+            type: 'Dépense',
+            amount: -(exp.amount || 0),
+            status: 'paid',
+            date: new Date(exp.date).toLocaleDateString('fr-FR'),
+          })),
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+
+        setRecentTransactions(transactions);
+      } catch (error) {
+        console.error('Error fetching reports data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReportsData();
+  }, []);
 
   const getIcon = (type) => {
     switch (type) {
@@ -20,6 +93,23 @@ const Reports = () => {
     }
   };
 
+  const getStats = () => [
+    { title: 'Revenu Total', value: stats.revenue, change: null, type: 'revenue' },
+    { title: 'Dépenses Totales', value: stats.expenses, change: null, type: 'expense' },
+    { title: 'Bénéfice Net', value: stats.profit, change: null, type: 'profit' },
+    { title: 'Flux de Trésorerie', value: stats.cashflow, change: null, type: 'cashflow' },
+  ];
+
+  if (loading) {
+    return (
+      <PageLayout title="Rapports">
+        <div className="flex items-center justify-center h-64">
+          <Loading size="lg" />
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout title="Rapports">
       <div className="space-y-8">
@@ -27,7 +117,7 @@ const Reports = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => (
+          {getStats().map((stat, index) => (
             <Card key={index} className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <p className="text-sm text-slate-500 font-medium">{stat.title}</p>
@@ -37,11 +127,7 @@ const Reports = () => {
               </div>
               <div className="flex items-baseline gap-2">
                 <h3 className="text-2xl font-bold">{formatCurrency(stat.value)}</h3>
-                <span className={`text-xs font-semibold ${stat.change > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {stat.change > 0 ? '+' : ''}{stat.change}%
-                </span>
               </div>
-              <p className="text-xs text-slate-400 mt-2">vs le mois dernier</p>
             </Card>
           ))}
         </div>
@@ -68,29 +154,29 @@ const Reports = () => {
         {/* Recent Transactions */}
         <Card title="Dernières Transactions">
           <div className="space-y-4">
-            {[
-              { client: 'Tech Solutions SARL', type: 'Revenu', amount: 1250, status: 'paid', date: '12 Juin 2024' },
-              { client: 'Cloud Hosting Services', type: 'Dépense', amount: -299, status: 'paid', date: '10 Juin 2024' },
-              { client: "Cabinet d'Architecture", type: 'Revenu', amount: 4500, status: 'pending', date: '08 Juin 2024' },
-            ].map((tx, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                    {tx.type === 'Revenu' ? <FiTrendingUp className="text-sm text-slate-600" /> : <FiShoppingCart className="text-sm text-slate-600" />}
+            {recentTransactions.length === 0 ? (
+              <p className="text-slate-500 text-center py-4">Aucune transaction</p>
+            ) : (
+              recentTransactions.map((tx, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                      {tx.type === 'Revenu' ? <FiTrendingUp className="text-sm text-slate-600" /> : <FiShoppingCart className="text-sm text-slate-600" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{tx.client}</p>
+                      <p className="text-xs text-slate-500">{tx.date}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">{tx.client}</p>
-                    <p className="text-xs text-slate-500">{tx.date}</p>
+                  <div className="text-right">
+                    <p className={`text-sm font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount))}
+                    </p>
+                    <Badge variant={tx.status === 'paid' ? 'success' : 'warning'}>{tx.status === 'paid' ? 'Payé' : 'En attente'}</Badge>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={`text-sm font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount))}
-                  </p>
-                  <Badge variant={tx.status === 'paid' ? 'success' : 'warning'}>{tx.status === 'paid' ? 'Payé' : 'En attente'}</Badge>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
       </div>
