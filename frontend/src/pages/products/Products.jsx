@@ -244,7 +244,6 @@ const Products = () => {
             placeholder="Rechercher..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            icon={<FiSearch className="text-sm" />}
             className="w-64"
           />
           <Select
