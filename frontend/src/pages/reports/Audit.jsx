@@ -15,10 +15,24 @@ const Audit = () => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
+      let startDate = null;
+      const now = new Date();
+
+      if (timeFilter === 'day') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      } else if (timeFilter === 'week') {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (timeFilter === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else if (timeFilter === 'year') {
+        startDate = new Date(now.getFullYear(), 0, 1);
+      }
+
       const params = {
         ...(userFilter !== 'all' && { userId: userFilter }),
         ...(typeFilter !== 'all' && { entity: typeFilter }),
-        ...(timeFilter !== 'all' && { timeRange: timeFilter }),
+        ...(startDate && { startDate: startDate.toISOString() }),
+        ...(timeFilter !== 'all' && { endDate: now.toISOString() }),
       };
       const response = await auditLogService.getAll(params);
       setLogs(Array.isArray(response) ? response : []);
@@ -68,7 +82,7 @@ const Audit = () => {
       key: 'changes',
       header: 'Détails',
       render: (row) => (
-        <div className="text-xs text-slate-500 max-w-xs">
+        <div className="text-xs text-slate-500 max-w-xs break-words whitespace-pre-wrap overflow-auto max-h-32">
           {row.changes && <div className="text-green-600">{JSON.stringify(row.changes)}</div>}
           {!row.changes && <span className="italic text-slate-400">N/A</span>}
         </div>
