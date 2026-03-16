@@ -165,13 +165,24 @@ const Products = () => {
     setShowModal(true);
   };
 
+  const categorySubmitMap = {
+    product: 'matériel',
+    service: 'service',
+    license: 'licence'
+  };
+
   const handleSubmit = async (data) => {
     setSubmitting(true);
     try {
+      const payload = {
+        ...data,
+        category: categorySubmitMap[data.category] || data.category,
+        priceHT: data.price,
+      };
       if (editingProduct) {
-        await productService.update(editingProduct._id, data);
+        await productService.update(editingProduct._id, payload);
       } else {
-        await productService.create(data);
+        await productService.create(payload);
       }
       setShowModal(false);
       fetchProducts();

@@ -154,10 +154,20 @@ const Clients = () => {
   const handleSubmit = async (data) => {
     setSubmitting(true);
     try {
+      const payload = {
+        companyName: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        country: data.country,
+        ice: data.ice,
+        status: data.status === 'active' ? 'actif' : 'inactif',
+      };
       if (editingClient) {
-        await clientService.update(editingClient._id, data);
+        await clientService.update(editingClient._id, payload);
       } else {
-        await clientService.create(data);
+        await clientService.create(payload);
       }
       setShowModal(false);
       fetchClients();

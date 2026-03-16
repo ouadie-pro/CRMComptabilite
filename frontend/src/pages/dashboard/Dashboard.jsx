@@ -182,17 +182,17 @@ const Dashboard = () => {
                   <div key={invoice._id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="size-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary text-xs font-bold">
-                        {invoice.invoiceNumber?.slice(-4) || 'FA-000'}
+                        {invoice.number?.slice(-4) ?? 'FA'}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{invoice.client?.name || 'Client'}</p>
-                        <p className="text-xs text-slate-500">{formatDateShort(invoice.date)}</p>
+                        <p className="text-sm font-medium">{invoice.clientId?.companyName || 'Client'}</p>
+                        <p className="text-xs text-slate-500">{formatDateShort(invoice.issueDate)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">{formatCurrency(invoice.total || 0)}</p>
-                      <Badge variant={invoice.status === 'paid' ? 'success' : invoice.status === 'overdue' ? 'danger' : 'warning'}>
-                        {invoice.status === 'paid' ? 'Payé' : invoice.status === 'overdue' ? 'En retard' : 'Envoyé'}
+                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0)}</p>
+                      <Badge variant={invoice.status === 'payé' ? 'success' : invoice.status === 'en_retard' ? 'danger' : 'warning'}>
+                        {invoice.status === 'payé' ? 'Payé' : invoice.status === 'en_retard' ? 'En retard' : 'Envoyé'}
                       </Badge>
                     </div>
                   </div>
@@ -213,15 +213,15 @@ const Dashboard = () => {
                   <div key={client._id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="size-8 bg-primary/10 rounded-full flex items-center justify-center text-primary text-xs font-bold">
-                        {client.name?.charAt(0) || 'C'}
+                        {client.companyName?.charAt(0) || 'C'}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{client.name}</p>
+                        <p className="text-sm font-medium">{client.companyName}</p>
                         <p className="text-xs text-slate-500">{client.email}</p>
                       </div>
                     </div>
-                    <Badge variant={client.status === 'active' ? 'success' : 'default'}>
-                      {client.status === 'active' ? 'Actif' : 'Inactif'}
+                    <Badge variant={client.status === 'actif' ? 'success' : 'default'}>
+                      {client.status === 'actif' ? 'Actif' : 'Inactif'}
                     </Badge>
                   </div>
                 ))

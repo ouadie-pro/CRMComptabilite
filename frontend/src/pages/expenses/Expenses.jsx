@@ -104,13 +104,15 @@ const Expenses = () => {
     }
   };
 
+  const statusLabels = { pending: 'En attente', approved: 'Approuvé', rejected: 'Rejeté' };
+
   const columns = [
     { key: 'date', header: 'Date', render: (row) => formatDateShort(row.date) },
     { key: 'description', header: 'Description', render: (row) => <span className="font-medium">{row.description}</span> },
     { key: 'category', header: 'Catégorie', render: (row) => <Badge>{row.category}</Badge> },
     { key: 'vendor', header: 'Fournisseur' },
     { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0) },
-    { key: 'status', header: 'Statut', render: (row) => <Badge variant={row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}>{row.status}</Badge> },
+    { key: 'status', header: 'Statut', render: (row) => <Badge variant={row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}>{statusLabels[row.status] || row.status}</Badge> },
     { key: 'actions', header: '', width: '80px', render: (row) => <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(row); setShowModal(true); }}><FiEdit2 className="text-sm" /></Button> },
   ];
 
