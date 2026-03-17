@@ -3,11 +3,12 @@ const logAudit = require('../utils/auditLogger');
 
 const getAllInvoices = async (req, res) => {
   try {
-    const { status, clientId, startDate, endDate } = req.query;
+    const { status, clientId, client, startDate, endDate } = req.query;
     let query = {};
 
     if (status) query.status = status;
-    if (clientId) query.clientId = clientId;
+    const clientFilter = clientId || client;
+    if (clientFilter) query.clientId = clientFilter;
     
     if (startDate || endDate) {
       query.issueDate = {};
@@ -130,6 +131,8 @@ const updateInvoice = async (req, res) => {
 
     const InvoiceLine = require('../models/InvoiceLineSchema');
 
+    let invoice;
+
     if (lines && Array.isArray(lines)) {
       await InvoiceLine.deleteMany({ _id: { $in: existingInvoice.lines } });
       
@@ -168,7 +171,7 @@ const updateInvoice = async (req, res) => {
         { invoiceId: existingInvoice._id }
       );
 
-      var invoice = await Invoice.findByIdAndUpdate(
+      invoice = await Invoice.findByIdAndUpdate(
         req.params.id,
         updateData,
         { new: true }
@@ -176,7 +179,7 @@ const updateInvoice = async (req, res) => {
         .populate('clientId', 'companyName email')
         .populate('lines');
     } else {
-      var invoice = await Invoice.findByIdAndUpdate(
+      invoice = await Invoice.findByIdAndUpdate(
         req.params.id,
         req.body,
         { new: true, runValidators: true }

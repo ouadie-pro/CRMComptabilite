@@ -56,18 +56,23 @@ const ComptableDashboard = () => {
           expenseService.getAll({ limit: 5, sort: '-createdAt' }),
         ]);
 
-        const invoices = invoicesRes.data || invoicesRes;
-        const expenses = expensesRes.data || expensesRes;
+        const invoices = (invoicesRes.data || invoicesRes).map(inv => ({
+          ...inv,
+          number: inv.number || inv.invoiceNumber,
+          issueDate: inv.issueDate || inv.date,
+          totalTTC: inv.totalTTC || inv.total || 0,
+        }));
+        const expenses = (expensesRes.data || expensesRes);
 
         const totalRevenue = invoices
-          .filter(inv => inv.status === 'paid')
-          .reduce((sum, inv) => sum + (inv.total || 0), 0);
+          .filter(inv => inv.status === 'payé' || inv.status === 'paid')
+          .reduce((sum, inv) => sum + (inv.totalTTC || 0), 0);
 
         const totalExpenses = expenses
           .reduce((sum, exp) => sum + (exp.amount || 0), 0);
 
-        const pendingCount = invoices.filter(inv => inv.status === 'sent').length;
-        const paidCount = invoices.filter(inv => inv.status === 'paid').length;
+        const pendingCount = invoices.filter(inv => inv.status === 'envoyé' || inv.status === 'sent').length;
+        const paidCount = invoices.filter(inv => inv.status === 'payé' || inv.status === 'paid').length;
 
         setStats({
           monthlyRevenue: totalRevenue,
@@ -173,12 +178,12 @@ const ComptableDashboard = () => {
                         {invoice.invoiceNumber?.slice(-4) || 'FA-000'}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">{invoice.client?.name || 'Client'}</p>
-                        <p className="text-xs text-slate-500">{formatDateShort(invoice.date)}</p>
+                        <p className="text-sm font-medium">{invoice.clientId?.companyName || invoice.client?.name || 'Client'}</p>
+                        <p className="text-xs text-slate-500">{formatDateShort(invoice.issueDate)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">{formatCurrency(invoice.total || 0)}</p>
+                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0)}</p>
                       {getStatusBadge(invoice.status)}
                     </div>
                   </div>

@@ -185,8 +185,23 @@ export const interactionService = {
     return response.data;
   },
 
+  getById: async (id) => {
+    const response = await api.get(`/interactions/${id}`);
+    return response.data;
+  },
+
   create: async (data) => {
     const response = await api.post('/interactions', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/interactions/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/interactions/${id}`);
     return response.data;
   },
 };

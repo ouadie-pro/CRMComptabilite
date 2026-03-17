@@ -1,5 +1,6 @@
 const express = require('express');
 const Router = express.Router();
+const { authMiddleware } = require('../controllers/User');
 const {
   getAllReminders,
   getReminderById,
@@ -7,6 +8,8 @@ const {
   updateReminder,
   deleteReminder
 } = require('../controllers/Reminder');
+
+Router.use(authMiddleware);
 
 Router.get('/', getAllReminders);
 Router.get('/:id', getReminderById);

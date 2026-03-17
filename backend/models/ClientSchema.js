@@ -7,11 +7,11 @@ const clientSchema = new mongoose.Schema({
     },
     contactName : {
         type: String,
-        required: true,
+        default: 'Client',
     },
     contactTitle : {
         type: String,
-        required: true,
+        default: 'Client',
     },
     email : {
         type: String,
@@ -31,7 +31,7 @@ const clientSchema = new mongoose.Schema({
     type: String
     },
     ice : {
-    type: String,
+        type: String,
     },
     status: {
         type: String,

@@ -1,5 +1,6 @@
 const express = require('express');
 const Router = express.Router();
+const { authMiddleware } = require('../controllers/User');
 const {
   getAllInvoices,
   getInvoiceById,
@@ -7,6 +8,8 @@ const {
   updateInvoice,
   deleteInvoice
 } = require('../controllers/Invoice');
+
+Router.use(authMiddleware);
 
 Router.get('/', getAllInvoices);
 Router.get('/:id', getInvoiceById);

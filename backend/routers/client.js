@@ -1,5 +1,6 @@
 const express = require('express');
 const Router = express.Router();
+const { authMiddleware } = require('../controllers/User');
 const {
   getAllClients,
   getClientById,
@@ -7,6 +8,8 @@ const {
   updateClient,
   deleteClient
 } = require('../controllers/Client');
+
+Router.use(authMiddleware);
 
 Router.get('/', getAllClients);
 Router.get('/:id', getClientById);

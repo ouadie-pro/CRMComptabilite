@@ -327,8 +327,8 @@ const Invoices = () => {
     setSubmitting(true);
     try {
       const submitData = {
-        clientId: data.client,
-        number: data.invoiceNumber,
+        client: data.client,
+        invoiceNumber: data.invoiceNumber,
         date: data.date,
         dueDate: data.dueDate,
         status: data.status,

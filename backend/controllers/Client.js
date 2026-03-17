@@ -53,15 +53,23 @@ const getClientById = async (req, res) => {
 
 const createClient = async (req, res) => {
   try {
-    const { name, status, city, country, ...rest } = req.body;
+    const { companyName, name, contactName, contactTitle, status, city, country, ...rest } = req.body;
+    
+    if (!companyName && !name) {
+      return res.status(400).json({ message: 'Le nom de l\'entreprise est requis' });
+    }
+    if (!req.body.email) {
+      return res.status(400).json({ message: 'L\'email est requis' });
+    }
+    
     const clientData = {
-      companyName: name,
-      contactName: name,
-      contactTitle: 'Client',
-      status: status === 'active' ? 'actif' : 'inactif',
+      ...rest,
+      companyName: companyName || name || '',
+      contactName: contactName || companyName || name || 'Client',
+      contactTitle: contactTitle || 'Client',
       city,
       country,
-      ...rest,
+      status: status === 'active' ? 'actif' : 'nouveau',
     };
     const client = new Client(clientData);
     await client.save();
@@ -78,16 +86,22 @@ const createClient = async (req, res) => {
     if (error.code === 11000) {
       return res.status(409).json({ message: 'Client with this email already exists' });
     }
+    if (error.name === 'ValidationError') {
+      console.error('Validation error details:', error.errors);
+      return res.status(400).json({ message: 'Validation error', errors: Object.values(error.errors).map(e => e.message) });
+    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 const updateClient = async (req, res) => {
   try {
-    const { name, status, city, country, ...rest } = req.body;
+    const { companyName, contactName, contactTitle, status, city, country, ...rest } = req.body;
     const updateData = {
       ...rest,
-      ...(name && { companyName: name, contactName: name }),
+      ...(companyName && { companyName }),
+      ...(contactName && { contactName }),
+      ...(contactTitle && { contactTitle }),
       ...(status && { status: status === 'active' ? 'actif' : 'inactif' }),
       ...(city && { city }),
       ...(country && { country }),

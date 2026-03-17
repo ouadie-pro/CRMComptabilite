@@ -152,6 +152,10 @@ const Clients = () => {
   };
 
   const handleSubmit = async (data) => {
+    if (!data.name || !data.email) {
+      alert('Veuillez remplir le nom et l\'email');
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {

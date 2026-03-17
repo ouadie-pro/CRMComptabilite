@@ -26,7 +26,12 @@ const Reports = () => {
           expenseService.getAll(),
         ]);
 
-        const allInvoices = invoicesRes.data || invoicesRes;
+        const allInvoices = (invoicesRes.data || invoicesRes).map(inv => ({
+          ...inv,
+          number: inv.number || inv.invoiceNumber,
+          issueDate: inv.issueDate || inv.date,
+          totalTTC: inv.totalTTC || inv.total || 0,
+        }));
         const allClients = clientsRes.data || clientsRes;
         const allExpenses = expensesRes.data || expensesRes;
 
@@ -89,10 +94,10 @@ const Reports = () => {
 
         const transactions = [
           ...allInvoices.slice(0, 5).map(inv => ({
-            client: inv.client?.name || 'Client',
+            client: inv.clientId?.companyName || inv.client?.name || 'Client',
             type: 'Revenu',
-            amount: inv.totalTTC || inv.total || 0,
-            status: inv.status === 'payé' ? 'paid' : 'pending',
+            amount: inv.totalTTC || 0,
+            status: inv.status === 'payé' || inv.status === 'paid' ? 'paid' : 'pending',
             rawDate: new Date(inv.issueDate || inv.date),
             date: new Date(inv.issueDate || inv.date).toLocaleDateString('fr-FR'),
           })),

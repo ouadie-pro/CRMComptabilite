@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getInitials } from '../../utils/formatters';
-import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut, FiX } from 'react-icons/fi';
+import { FiBriefcase, FiGrid, FiUsers, FiFileText, FiPackage, FiDollarSign, FiBarChart2, FiClipboard, FiSettings, FiLogOut, FiX, FiMessageSquare } from 'react-icons/fi';
 
 const adminNavItems = [
   { path: '/dashboard', icon: FiGrid, label: 'Tableau de bord' },
@@ -9,6 +9,7 @@ const adminNavItems = [
   { path: '/invoices', icon: FiFileText, label: 'Factures' },
   { path: '/products', icon: FiPackage, label: 'Produits' },
   { path: '/expenses', icon: FiDollarSign, label: 'Dépenses' },
+  { path: '/interactions', icon: FiMessageSquare, label: 'Interactions' },
   { path: '/reports', icon: FiBarChart2, label: 'Rapports' },
   { path: '/audit', icon: FiClipboard, label: 'Audit' },
   { path: '/settings', icon: FiSettings, label: 'Paramètres' },

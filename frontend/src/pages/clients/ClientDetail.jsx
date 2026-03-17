@@ -57,7 +57,7 @@ const ClientDetail = () => {
 
   return (
     <PageLayout 
-      title={`${client.name}`}
+      title={client.companyName}
       actions={
         <div className="flex gap-2">
           <Button variant="outline">
@@ -80,7 +80,7 @@ const ClientDetail = () => {
             </div>
             <div className="flex-1 grid md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-2xl font-bold mb-4">{client.name}</h3>
+                <h3 className="text-2xl font-bold mb-4">{client.companyName}</h3>
                 <div className="space-y-2">
                   {client.address && (
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
@@ -109,8 +109,8 @@ const ClientDetail = () => {
                 </div>
               </div>
               <div className="flex flex-col items-start md:items-end">
-                <Badge variant={client.status === 'active' ? 'success' : 'default'} className="mb-4">
-                  {client.status === 'active' ? 'Actif' : 'Inactif'}
+                <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
+                  {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
                 </Badge>
                 <div className="text-right">
                   <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
@@ -150,13 +150,13 @@ const ClientDetail = () => {
                 {invoices.map((invoice) => (
                   <div key={invoice._id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <span className="font-semibold text-primary">{invoice.invoiceNumber}</span>
-                      <span className="text-sm text-slate-500">{formatDate(invoice.date)}</span>
+                      <span className="font-semibold text-primary">{invoice.number || invoice.invoiceNumber}</span>
+                      <span className="text-sm text-slate-500">{formatDate(invoice.issueDate || invoice.date)}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="font-bold">{formatCurrency(invoice.total || 0)}</span>
-                      <Badge variant={invoice.status === 'paid' ? 'success' : invoice.status === 'overdue' ? 'danger' : 'warning'}>
-                        {invoice.status}
+                      <span className="font-bold">{formatCurrency(invoice.totalTTC || invoice.total || 0)}</span>
+                      <Badge variant={invoice.status === 'payé' || invoice.status === 'paid' ? 'success' : invoice.status === 'en_retard' || invoice.status === 'overdue' ? 'danger' : 'warning'}>
+                        {invoice.status === 'payé' ? 'Payé' : invoice.status === 'paid' ? 'Payé' : invoice.status === 'en_retard' || invoice.status === 'overdue' ? 'En retard' : invoice.status === 'envoyé' || invoice.status === 'sent' ? 'Envoyé' : 'Brouillon'}
                       </Badge>
                     </div>
                   </div>

@@ -1,5 +1,6 @@
 const express = require('express');
 const Router = express.Router();
+const { authMiddleware } = require('../controllers/User');
 const {
   getAllPayments,
   getPaymentById,
@@ -7,6 +8,8 @@ const {
   updatePayment,
   deletePayment
 } = require('../controllers/Payment');
+
+Router.use(authMiddleware);
 
 Router.get('/', getAllPayments);
 Router.get('/:id', getPaymentById);

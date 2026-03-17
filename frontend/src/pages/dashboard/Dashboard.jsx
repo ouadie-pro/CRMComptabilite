@@ -62,7 +62,12 @@ const Dashboard = () => {
         ]);
 
         const allClients = clientsRes.data || clientsRes;
-        const allInvoices = invoicesRes.data || invoicesRes;
+        const allInvoices = (invoicesRes.data || invoicesRes).map(inv => ({
+          ...inv,
+          number: inv.number || inv.invoiceNumber,
+          issueDate: inv.issueDate || inv.date,
+          totalTTC: inv.totalTTC || inv.total || 0,
+        }));
         const allExpenses = expensesRes.data || expensesRes;
 
         const currentMonthInvoices = allInvoices.filter(

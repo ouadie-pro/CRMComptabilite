@@ -13,6 +13,7 @@ import Expenses from './pages/expenses/Expenses';
 import Reports from './pages/reports/Reports';
 import Audit from './pages/reports/Audit';
 import Settings from './pages/settings/Settings';
+import Interactions from './pages/interactions/Interactions';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -160,6 +161,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/interactions"
+        element={
+          <ProtectedRoute>
+            <Interactions />
           </ProtectedRoute>
         }
       />
