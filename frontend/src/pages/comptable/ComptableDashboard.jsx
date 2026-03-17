@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Badge, Loading } from '../../components/ui';
 import { invoiceService, expenseService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiCheckCircle, FiAlertCircle, FiShoppingCart, FiMinusCircle } from 'react-icons/fi';
 
@@ -37,6 +38,8 @@ const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'primary'
 };
 
 const ComptableDashboard = () => {
+  const { billing } = useSettings();
+  const currency = billing?.currency || 'MAD';
   const [stats, setStats] = useState({
     monthlyRevenue: 0,
     monthlyExpenses: 0,
@@ -126,7 +129,7 @@ const ComptableDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="Revenus du mois"
-            value={formatCurrency(stats.monthlyRevenue)}
+            value={formatCurrency(stats.monthlyRevenue, currency)}
             subtitle="Factures payées"
             icon={FiDollarSign}
             trend={8.2}
@@ -134,7 +137,7 @@ const ComptableDashboard = () => {
           />
           <StatCard
             title="Dépenses du mois"
-            value={formatCurrency(stats.monthlyExpenses)}
+            value={formatCurrency(stats.monthlyExpenses, currency)}
             subtitle="Total dépenses"
             icon={FiShoppingCart}
             trend={-3.1}
@@ -142,7 +145,7 @@ const ComptableDashboard = () => {
           />
           <StatCard
             title="Bénéfice"
-            value={formatCurrency(stats.profit)}
+            value={formatCurrency(stats.profit, currency)}
             subtitle="Revenus - Dépenses"
             icon={stats.profit >= 0 ? FiTrendingUp : FiTrendingDown}
             color={stats.profit >= 0 ? 'success' : 'danger'}
@@ -183,7 +186,7 @@ const ComptableDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0)}</p>
+                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0, currency)}</p>
                       {getStatusBadge(invoice.status)}
                     </div>
                   </div>
@@ -211,7 +214,7 @@ const ComptableDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-red-600">-{formatCurrency(expense.amount || 0)}</p>
+                      <p className="text-sm font-bold text-red-600">-{formatCurrency(expense.amount || 0, currency)}</p>
                       <Badge variant="warning">{expense.category || 'Autre'}</Badge>
                     </div>
                   </div>
@@ -225,16 +228,16 @@ const ComptableDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
               <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">Revenus</p>
-              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(stats.monthlyRevenue)}</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(stats.monthlyRevenue, currency)}</p>
             </div>
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
               <p className="text-sm text-red-600 dark:text-red-400 font-medium">Dépenses</p>
-              <p className="text-2xl font-bold text-red-700 dark:text-red-300">-{formatCurrency(stats.monthlyExpenses)}</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300">-{formatCurrency(stats.monthlyExpenses, currency)}</p>
             </div>
             <div className={`p-4 rounded-lg ${stats.profit >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
               <p className={`text-sm font-medium ${stats.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>Bénéfice</p>
               <p className={`text-2xl font-bold ${stats.profit >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                {formatCurrency(stats.profit)}
+                {formatCurrency(stats.profit, currency)}
               </p>
             </div>
           </div>

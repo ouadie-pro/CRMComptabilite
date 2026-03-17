@@ -1,5 +1,41 @@
 const mongoose = require("mongoose");
 
+const invoiceItemSchema = new mongoose.Schema({
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product",
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    default: 1
+  },
+  unitPriceHT: {
+    type: Number,
+    required: true
+  },
+  vatRate: {
+    type: Number,
+    default: 20
+  },
+  discount: {
+    type: Number,
+    default: 0
+  },
+  totalHT: {
+    type: Number,
+    required: true
+  }
+}, { timestamps: true });
+
 const invoiceSchema = new mongoose.Schema({
 
   number: {
@@ -14,10 +50,7 @@ const invoiceSchema = new mongoose.Schema({
     required: true
   },
 
-  lines: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "InvoiceLine"
-  }],
+  items: [invoiceItemSchema],
 
   paymentId: {
         type: mongoose.Schema.Types.ObjectId,

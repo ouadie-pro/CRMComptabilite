@@ -18,7 +18,7 @@ const getAllInvoices = async (req, res) => {
 
     const invoices = await Invoice.find(query)
       .populate('clientId', 'companyName email')
-      .populate('lines')
+      .populate('items.productId')
       .sort({ createdAt: -1 });
     res.status(200).json(invoices);
   } catch (error) {
@@ -30,7 +30,7 @@ const getInvoiceById = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id)
       .populate('clientId', 'companyName email phone address ice')
-      .populate('lines')
+      .populate('items.productId')
       .populate('paymentId');
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
@@ -56,22 +56,40 @@ const createInvoice = async (req, res) => {
     
     const statusMap = { draft: 'brouillon', sent: 'envoyé', paid: 'payé', overdue: 'en_retard', cancelled: 'annulé' };
     
-    const InvoiceLine = require('../models/InvoiceLineSchema');
-    const createdLines = await Promise.all(
-      lines.map(line => 
-        InvoiceLine.create({
+    const Product = require('../models/ProductSchema');
+    const items = await Promise.all(
+      lines.map(async (line) => {
+        const quantity = parseInt(line.quantity) || 1;
+        const unitPriceHT = parseFloat(line.price) || 0;
+        const vatRate = parseFloat(line.vatRate) || 20;
+        const discount = parseFloat(line.discount) || 0;
+        
+        let productName = line.name || line.description || 'Produit';
+        let productId = null;
+        
+        if (line.productId) {
+          const product = await Product.findById(line.productId);
+          if (product) {
+            productId = product._id;
+            productName = product.name;
+          }
+        }
+        
+        return {
+          productId,
+          name: productName,
           description: line.description || '',
-          quantity: parseInt(line.quantity) || 1,
-          unitPriceHT: parseFloat(line.price) || 0,
-          vatRate: parseFloat(line.vatRate) || 20,
-          discount: parseFloat(line.discount) || 0,
-          totalHT: (parseInt(line.quantity) || 1) * (parseFloat(line.price) || 0) * (1 - (parseFloat(line.discount) || 0) / 100)
-        })
-      )
+          quantity,
+          unitPriceHT,
+          vatRate,
+          discount,
+          totalHT: quantity * unitPriceHT * (1 - discount / 100)
+        };
+      })
     );
     
-    const subtotalHT = createdLines.reduce((sum, line) => sum + line.totalHT, 0);
-    const totalVat = createdLines.reduce((sum, line) => sum + (line.totalHT * line.vatRate / 100), 0);
+    const subtotalHT = items.reduce((sum, item) => sum + item.totalHT, 0);
+    const totalVat = items.reduce((sum, item) => sum + (item.totalHT * item.vatRate / 100), 0);
     const totalTTC = subtotalHT + totalVat;
     
     const invoiceData = {
@@ -80,7 +98,7 @@ const createInvoice = async (req, res) => {
       issueDate: date ? new Date(date) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : (date ? new Date(date) : new Date()),
       status: statusMap[status] || status || 'brouillon',
-      lines: createdLines.map(l => l._id),
+      items,
       subtotalHT,
       totalVat,
       totalTTC,
@@ -90,14 +108,9 @@ const createInvoice = async (req, res) => {
     const invoice = new Invoice(invoiceData);
     await invoice.save();
     
-    await InvoiceLine.updateMany(
-      { _id: { $in: createdLines.map(l => l._id) } },
-      { invoiceId: invoice._id }
-    );
-    
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate('clientId', 'companyName email')
-      .populate('lines');
+      .populate('items.productId');
     await logAudit({
       userId: req.user?._id,
       action: "create",
@@ -129,28 +142,44 @@ const updateInvoice = async (req, res) => {
       return res.status(404).json({ message: 'Invoice not found' });
     }
 
-    const InvoiceLine = require('../models/InvoiceLineSchema');
+    const Product = require('../models/ProductSchema');
 
     let invoice;
 
     if (lines && Array.isArray(lines)) {
-      await InvoiceLine.deleteMany({ _id: { $in: existingInvoice.lines } });
-      
-      const createdLines = await Promise.all(
-        lines.map(line => 
-          InvoiceLine.create({
+      const items = await Promise.all(
+        lines.map(async (line) => {
+          const quantity = parseInt(line.quantity) || 1;
+          const unitPriceHT = parseFloat(line.price) || 0;
+          const vatRate = parseFloat(line.vatRate) || 20;
+          const discount = parseFloat(line.discount) || 0;
+          
+          let productName = line.name || line.description || 'Produit';
+          let productId = null;
+          
+          if (line.productId) {
+            const product = await Product.findById(line.productId);
+            if (product) {
+              productId = product._id;
+              productName = product.name;
+            }
+          }
+          
+          return {
+            productId,
+            name: productName,
             description: line.description || '',
-            quantity: parseInt(line.quantity) || 1,
-            unitPriceHT: parseFloat(line.price) || 0,
-            vatRate: parseFloat(line.vatRate) || 20,
-            discount: parseFloat(line.discount) || 0,
-            totalHT: (parseInt(line.quantity) || 1) * (parseFloat(line.price) || 0) * (1 - (parseFloat(line.discount) || 0) / 100)
-          })
-        )
+            quantity,
+            unitPriceHT,
+            vatRate,
+            discount,
+            totalHT: quantity * unitPriceHT * (1 - discount / 100)
+          };
+        })
       );
 
-      const subtotalHT = createdLines.reduce((sum, line) => sum + line.totalHT, 0);
-      const totalVat = createdLines.reduce((sum, line) => sum + (line.totalHT * line.vatRate / 100), 0);
+      const subtotalHT = items.reduce((sum, item) => sum + item.totalHT, 0);
+      const totalVat = items.reduce((sum, item) => sum + (item.totalHT * item.vatRate / 100), 0);
       const totalTTC = subtotalHT + totalVat;
 
       const updateData = {
@@ -160,16 +189,11 @@ const updateInvoice = async (req, res) => {
         ...(dueDate && { dueDate: new Date(dueDate) }),
         ...(status && { status }),
         ...(notes !== undefined && { notes }),
-        lines: createdLines.map(l => l._id),
+        items,
         subtotalHT,
         totalVat,
         totalTTC,
       };
-
-      await InvoiceLine.updateMany(
-        { _id: { $in: createdLines.map(l => l._id) } },
-        { invoiceId: existingInvoice._id }
-      );
 
       invoice = await Invoice.findByIdAndUpdate(
         req.params.id,
@@ -177,7 +201,7 @@ const updateInvoice = async (req, res) => {
         { new: true }
       )
         .populate('clientId', 'companyName email')
-        .populate('lines');
+        .populate('items.productId');
     } else {
       invoice = await Invoice.findByIdAndUpdate(
         req.params.id,
@@ -185,7 +209,7 @@ const updateInvoice = async (req, res) => {
         { new: true, runValidators: true }
       )
         .populate('clientId', 'companyName email')
-        .populate('lines');
+        .populate('items.productId');
     }
 
     await logAudit({

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
 import { Card, Button, Input, Select, Loading } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import { FiCamera, FiMail } from 'react-icons/fi';
 import api, { BACKEND_URL } from '../../services/api';
 
 const Settings = () => {
   const { user } = useAuth();
+  const { settings, loading: settingsLoading, updateSettings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
@@ -34,28 +36,20 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('company');
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const response = await api.get('/settings');
-        if (response.data) {
-          setCompany(prev => ({ ...prev, ...response.data.company }));
-          setBilling(prev => ({ ...prev, ...response.data.billing }));
-          setNotifications(prev => ({ ...prev, ...response.data.notifications }));
-        }
-      } catch (error) {
-        console.error('Error loading settings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSettings();
-  }, []);
+    if (!settingsLoading && settings) {
+      setCompany(prev => ({ ...prev, ...settings.company }));
+      setBilling(prev => ({ ...prev, ...settings.billing }));
+      setNotifications(prev => ({ ...prev, ...settings.notifications }));
+      setLoading(false);
+    }
+  }, [settings, settingsLoading]);
 
   const handleSave = async () => {
     setSaving(true);
     setSaveMessage(null);
     try {
       await api.put('/settings', { company, billing, notifications });
+      updateSettings({ company, billing, notifications });
       setSaveMessage({ type: 'success', text: 'Modifications enregistrées' });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {

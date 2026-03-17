@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../components/ui';
 import { expenseService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiEdit2, FiPlus } from 'react-icons/fi';
+import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
+  const { billing } = useSettings();
   const [formData, setFormData] = useState({
     description: expense?.description || '',
     category: expense?.category || 'salaire',
@@ -65,6 +67,7 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
 };
 
 const Expenses = () => {
+  const { billing } = useSettings();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -96,11 +99,24 @@ const Expenses = () => {
       else await expenseService.create(data);
       setShowModal(false);
       fetchExpenses();
+      if (window.refreshReports) window.refreshReports();
     } catch (err) {
       console.error('Error saving expense:', err);
       setError(err.response?.data?.message || 'Erreur lors de l\'enregistrement');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (expenseId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette dépense ?')) return;
+    try {
+      await expenseService.delete(expenseId);
+      fetchExpenses();
+      if (window.refreshReports) window.refreshReports();
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      alert('Erreur lors de la suppression');
     }
   };
 
@@ -111,9 +127,18 @@ const Expenses = () => {
     { key: 'description', header: 'Description', render: (row) => <span className="font-medium">{row.description}</span> },
     { key: 'category', header: 'Catégorie', render: (row) => <Badge>{row.category}</Badge> },
     { key: 'vendor', header: 'Fournisseur' },
-    { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0) },
+    { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0, billing?.currency || 'MAD') },
     { key: 'status', header: 'Statut', render: (row) => <Badge variant={row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}>{statusLabels[row.status] || row.status}</Badge> },
-    { key: 'actions', header: '', width: '80px', render: (row) => <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(row); setShowModal(true); }}><FiEdit2 className="text-sm" /></Button> },
+    { key: 'actions', header: '', width: '120px', render: (row) => (
+      <div className="flex gap-1">
+        <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(row); setShowModal(true); }}>
+          <FiEdit2 className="text-sm" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => handleDelete(row._id)} className="text-red-500 hover:text-red-700">
+          <FiTrash2 className="text-sm" />
+        </Button>
+      </div>
+    ) },
   ];
 
   return (

@@ -4,7 +4,7 @@ import { Button, Input, Select, DataTable, Modal, Badge, Loading, Textarea } fro
 import { interactionService, clientService } from '../../services';
 import { formatDateShort } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
-import { FiPlus } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiEdit2 } from 'react-icons/fi';
 
 const InteractionForm = ({ interaction, onSubmit, onCancel, loading }) => {
   const { user } = useAuth();
@@ -127,6 +127,17 @@ const Interactions = () => {
     }
   };
 
+  const handleDelete = async (interactionId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette interaction ?')) return;
+    try {
+      await interactionService.delete(interactionId);
+      fetchInteractions();
+    } catch (error) {
+      console.error('Error deleting interaction:', error);
+      alert('Erreur lors de la suppression');
+    }
+  };
+
   const getTypeBadge = (type) => {
     const variants = {
       call: 'info',
@@ -149,6 +160,11 @@ const Interactions = () => {
     { key: 'type', header: 'Type', render: (row) => getTypeBadge(row.type) },
     { key: 'subject', header: 'Sujet', render: (row) => <span className="font-medium">{row.subject}</span> },
     { key: 'description', header: 'Description', render: (row) => <span className="text-slate-500 text-sm truncate max-w-xs">{row.description}</span> },
+    { key: 'actions', header: '', width: '60px', render: (row) => (
+      <Button variant="ghost" size="sm" onClick={() => handleDelete(row._id)} className="text-red-500 hover:text-red-700">
+        <FiTrash2 className="text-sm" />
+      </Button>
+    ) },
   ];
 
   return (

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Badge, Loading } from '../../components/ui';
 import { clientService, invoiceService, expenseService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiCheckCircle, FiAlertCircle, FiUsers, FiShoppingCart } from 'react-icons/fi';
 
@@ -37,6 +38,8 @@ const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'primary'
 };
 
 const Dashboard = () => {
+  const { billing } = useSettings();
+  const currency = billing?.currency || 'MAD';
   const [stats, setStats] = useState({
     monthlyRevenue: 0,
     recoveryRate: 0,
@@ -138,7 +141,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="C.A. Mensuel"
-            value={formatCurrency(stats.monthlyRevenue)}
+            value={formatCurrency(stats.monthlyRevenue, currency)}
             subtitle="Ce mois"
             icon={FiDollarSign}
             color="primary"
@@ -152,7 +155,7 @@ const Dashboard = () => {
           />
           <StatCard
             title="Créances Totales"
-            value={formatCurrency(stats.totalReceivables)}
+            value={formatCurrency(stats.totalReceivables, currency)}
             subtitle={`${stats.pendingInvoices} facture${stats.pendingInvoices !== 1 ? 's' : ''} impayée${stats.pendingInvoices !== 1 ? 's' : ''}`}
             icon={FiAlertCircle}
             color="danger"
@@ -166,7 +169,7 @@ const Dashboard = () => {
           />
           <StatCard
             title="Dépenses"
-            value={formatCurrency(stats.monthlyExpenses)}
+            value={formatCurrency(stats.monthlyExpenses, currency)}
             subtitle="Dans le budget"
             icon={FiShoppingCart}
             color="warning"
@@ -195,7 +198,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0)}</p>
+                      <p className="text-sm font-bold">{formatCurrency(invoice.totalTTC || 0, currency)}</p>
                       <Badge variant={invoice.status === 'payé' ? 'success' : invoice.status === 'en_retard' ? 'danger' : 'warning'}>
                         {invoice.status === 'payé' ? 'Payé' : invoice.status === 'en_retard' ? 'En retard' : 'Envoyé'}
                       </Badge>

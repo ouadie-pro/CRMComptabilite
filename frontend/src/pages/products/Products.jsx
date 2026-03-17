@@ -2,10 +2,14 @@ import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../components/ui';
 import { productService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency } from '../../utils/formatters';
-import { FiEdit2, FiPlus, FiSearch } from 'react-icons/fi';
+import { FiEdit2, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
 
 const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
+  const { billing } = useSettings();
+  const defaultVatRate = billing?.vatRate || 20;
+  
   const [formData, setFormData] = useState({
     name: product?.name || '',
     sku: product?.sku || '',
@@ -13,7 +17,7 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
     category: product?.category || 'service',
     price: product?.price || '',
     cost: product?.cost || '',
-    vatRate: product?.vatRate || 20,
+    vatRate: product?.vatRate || defaultVatRate,
     unit: product?.unit || 'unit',
     status: product?.status || 'active',
   });
@@ -165,6 +169,17 @@ const Products = () => {
     setShowModal(true);
   };
 
+  const handleDelete = async (productId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) return;
+    try {
+      await productService.delete(productId);
+      fetchProducts();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Erreur lors de la suppression');
+    }
+  };
+
   const categorySubmitMap = {
     product: 'matériel',
     service: 'service',
@@ -230,11 +245,16 @@ const Products = () => {
     {
       key: 'actions',
       header: '',
-      width: '80px',
+      width: '120px',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
-          <FiEdit2 className="text-sm" />
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
+            <FiEdit2 className="text-sm" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => handleDelete(row._id)} className="text-red-500 hover:text-red-700">
+            <FiTrash2 className="text-sm" />
+          </Button>
+        </div>
       ),
     },
   ];

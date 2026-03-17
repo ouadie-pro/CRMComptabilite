@@ -3,12 +3,16 @@ import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../components/ui';
 import { invoiceService, clientService, productService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
 import { FiTrash2, FiPlus, FiEdit2, FiDownload } from 'react-icons/fi';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
+  const { billing } = useSettings();
+  const defaultVatRate = billing?.vatRate || 20;
+  const currency = billing?.currency || 'MAD';
+  
   const [formData, setFormData] = useState({
     client: invoice?.clientId?._id || invoice?.client?._id || '',
     invoiceNumber: invoice?.number || invoice?.invoiceNumber || '',
@@ -18,20 +22,23 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
     notes: invoice?.notes || '',
   });
   const [lines, setLines] = useState(() => {
-    if (invoice?.lines?.length > 0) {
-      return invoice.lines.map(line => ({
-        description: line.description || '',
-        quantity: line.quantity || 1,
-        price: line.unitPriceHT || line.price || '',
-        vatRate: line.vatRate || 20,
-        discount: line.discount || 0,
-        total: line.totalHT || line.total || 0,
+    if (invoice?.items?.length > 0) {
+      return invoice.items.map(item => ({
+        productId: item.productId?._id || item.productId || '',
+        description: item.description || item.name || '',
+        quantity: item.quantity || 1,
+        price: item.unitPriceHT || item.price || '',
+        vatRate: item.vatRate || defaultVatRate,
+        discount: item.discount || 0,
+        total: item.totalHT || item.total || 0,
       }));
     }
-    return [{ description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }];
+    return [{ productId: '', description: '', quantity: 1, price: '', vatRate: defaultVatRate, discount: 0, total: 0 }];
   });
   const [clients, setClients] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -44,7 +51,18 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
         setLoadingClients(false);
       }
     };
+    const fetchProducts = async () => {
+      try {
+        const response = await productService.getAll({ limit: 100 });
+        setProducts(response.filter(p => p.status === 'actif'));
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
     fetchClients();
+    fetchProducts();
   }, []);
 
   const handleChange = (e) => {
@@ -54,6 +72,17 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   const handleLineChange = (index, field, value) => {
     const newLines = [...lines];
     newLines[index][field] = value;
+    
+    if (field === 'productId' && value) {
+      const product = products.find(p => p._id === value);
+      if (product) {
+        newLines[index].productId = product._id;
+        newLines[index].description = product.name;
+        newLines[index].price = product.priceHT;
+        newLines[index].vatRate = product.vatRate || defaultVatRate;
+      }
+    }
+    
     if (field === 'quantity' || field === 'price' || field === 'discount') {
       const price = parseFloat(newLines[index].price) || 0;
       const qty = parseInt(newLines[index].quantity) || 0;
@@ -64,7 +93,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   };
 
   const addLine = () => {
-    setLines([...lines, { description: '', quantity: 1, price: '', vatRate: 20, discount: 0, total: 0 }]);
+    setLines([...lines, { productId: '', description: '', quantity: 1, price: '', vatRate: defaultVatRate, discount: 0, total: 0 }]);
   };
 
   const removeLine = (index) => {
@@ -154,7 +183,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-                <th className="pb-2 pr-4 min-w-[200px]">Description</th>
+                <th className="pb-2 pr-4 min-w-[180px]">Produit</th>
+                <th className="pb-2 pr-4 min-w-[180px]">Description</th>
                 <th className="pb-2 px-2 w-20">Qté</th>
                 <th className="pb-2 px-2 w-24">Prix HT</th>
                 <th className="pb-2 px-2 w-20">TVA %</th>
@@ -166,6 +196,19 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {lines.map((line, index) => (
                 <tr key={index}>
+                  <td className="py-2 pr-4">
+                    <select
+                      value={line.productId || ''}
+                      onChange={(e) => handleLineChange(index, 'productId', e.target.value)}
+                      className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+                      disabled={loadingProducts}
+                    >
+                      <option value="">Sélectionner un produit</option>
+                      {products.map(product => (
+                        <option key={product._id} value={product._id}>{product.name}</option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="py-2 pr-4">
                     <Input
                       value={line.description}
@@ -216,7 +259,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
                     />
                   </td>
                   <td className="py-2 pl-4 text-right font-medium">
-                    {formatCurrency((line.quantity * line.price) * (1 - line.discount / 100))}
+                    {formatCurrency((line.quantity * line.price) * (1 - line.discount / 100), currency)}
                   </td>
                   <td className="py-2">
                     <button
@@ -244,15 +287,15 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
         <div className="w-64 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Sous-total HT</span>
-            <span>{formatCurrency(totals.subtotal)}</span>
+            <span>{formatCurrency(totals.subtotal, currency)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">TVA</span>
-            <span>{formatCurrency(totals.vat)}</span>
+            <span>{formatCurrency(totals.vat, currency)}</span>
           </div>
           <div className="flex justify-between text-lg font-bold border-t pt-2">
             <span>Total TTC</span>
-            <span>{formatCurrency(totals.total)}</span>
+            <span>{formatCurrency(totals.total, currency)}</span>
           </div>
         </div>
       </div>
@@ -275,6 +318,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
 };
 
 const Invoices = () => {
+  const { company, billing } = useSettings();
+  const currency = billing?.currency || 'MAD';
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -323,6 +368,18 @@ const Invoices = () => {
     setShowModal(true);
   };
 
+  const handleDelete = async (invoiceId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) return;
+    try {
+      await invoiceService.delete(invoiceId);
+      fetchInvoices();
+      if (window.refreshReports) window.refreshReports();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      alert('Erreur lors de la suppression');
+    }
+  };
+
   const handleSubmit = async (data) => {
     setSubmitting(true);
     try {
@@ -342,6 +399,7 @@ const Invoices = () => {
       }
       setShowModal(false);
       fetchInvoices();
+      if (window.refreshReports) window.refreshReports();
     } catch (error) {
       console.error('Error saving invoice:', error);
       const msg = error.response?.data?.message || error.response?.data?.errors?.join(', ') || error.message || 'Failed to save invoice';
@@ -379,55 +437,7 @@ const Invoices = () => {
   };
 
   const generatePDF = (invoice) => {
-    const doc = new jsPDF();
-    
-    doc.setFontSize(20);
-    doc.text(`Facture ${invoice.number}`, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.text(`Client: ${invoice.clientId?.companyName || '-'}`, 14, 35);
-    doc.text(`Date d'émission: ${formatDateShort(invoice.issueDate)}`, 14, 42);
-    doc.text(`Date d'échéance: ${formatDateShort(invoice.dueDate)}`, 14, 49);
-    
-    const tableData = (invoice.lines || []).map(line => [
-      (line.description || '-').replace(/\n/g, ' '),
-      line.quantity || 0,
-      formatCurrency(line.unitPriceHT || line.price || 0),
-      `${line.vatRate || 0}%`,
-      `${line.discount || 0}%`,
-      formatCurrency(line.totalHT || 0)
-    ]);
-    
-    autoTable(doc, {
-      startY: 60,
-      head: [['Description', 'Qté', 'Prix Unit.', 'TVA %', 'Remise %', 'Total']],
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [66, 66, 66] },
-      columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 20, halign: 'center' },
-        2: { cellWidth: 30, halign: 'right' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 30, halign: 'right' }
-      },
-      didDrawPage: (data) => {
-        data.cursor.y = data.cursor.y;
-      }
-    });
-    
-    const finalY = (doc.lastAutoTable?.finalY || 60) + 10;
-    
-    doc.setFontSize(10);
-    doc.text(`Sous-total HT: ${formatCurrency(invoice.subtotalHT || 0)}`, 140, finalY, { align: 'right' });
-    doc.text(`TVA: ${formatCurrency(invoice.totalVat || 0)}`, 140, finalY + 7, { align: 'right' });
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Total TTC: ${formatCurrency(invoice.totalTTC || 0)}`, 140, finalY + 16, { align: 'right' });
-    
-    const fileName = `${invoice.number || 'invoice'}.pdf`;
-    doc.save(fileName);
+    generateInvoicePDF(invoice, { company, billing });
   };
 
   const columns = [
@@ -454,7 +464,7 @@ const Invoices = () => {
     {
       key: 'totalTTC',
       header: 'Montant',
-      render: (row) => formatCurrency(row.totalTTC || 0),
+      render: (row) => formatCurrency(row.totalTTC || 0, currency),
     },
     {
       key: 'status',
@@ -472,6 +482,9 @@ const Invoices = () => {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
             <FiEdit2 className="text-sm" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => handleDelete(row._id)} className="text-red-500 hover:text-red-700">
+            <FiTrash2 className="text-sm" />
           </Button>
         </div>
       ),

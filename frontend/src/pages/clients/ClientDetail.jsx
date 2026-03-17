@@ -3,16 +3,49 @@ import { useParams, Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Badge, Button, Loading } from '../../components/ui';
 import { clientService, invoiceService, interactionService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone, FiPhoneCall, FiMessageSquare } from 'react-icons/fi';
+import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone, FiPhoneCall, FiMessageSquare, FiTrash2 } from 'react-icons/fi';
 
 const ClientDetail = () => {
   const { id } = useParams();
+  const { billing } = useSettings();
+  const currency = billing?.currency || 'MAD';
   const [client, setClient] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [interactions, setInteractions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('invoices');
+  const [deleting, setDeleting] = useState(null);
+
+  const handleDeleteInvoice = async (invoiceId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) return;
+    setDeleting(invoiceId);
+    try {
+      await invoiceService.delete(invoiceId);
+      setInvoices(invoices.filter(inv => inv._id !== invoiceId));
+      if (window.refreshReports) window.refreshReports();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      alert('Erreur lors de la suppression');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleDeleteInteraction = async (interactionId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette interaction ?')) return;
+    setDeleting(interactionId);
+    try {
+      await interactionService.delete(interactionId);
+      setInteractions(interactions.filter(int => int._id !== interactionId));
+    } catch (error) {
+      console.error('Error deleting interaction:', error);
+      alert('Erreur lors de la suppression');
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -112,10 +145,15 @@ const ClientDetail = () => {
                 <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
                   {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
                 </Badge>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
-                  <p className="text-2xl font-bold text-primary">{formatCurrency(client.totalBilled || 0)}</p>
-                </div>
+                  <div className="text-right">
+                    <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
+                      {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
+                    </Badge>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
+                      <p className="text-2xl font-bold text-primary">{formatCurrency(client.totalBilled || 0, currency)}</p>
+                    </div>
+                  </div>
               </div>
             </div>
           </div>
@@ -154,10 +192,18 @@ const ClientDetail = () => {
                       <span className="text-sm text-slate-500">{formatDate(invoice.issueDate || invoice.date)}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="font-bold">{formatCurrency(invoice.totalTTC || invoice.total || 0)}</span>
+                      <span className="font-bold">{formatCurrency(invoice.totalTTC || invoice.total || 0, currency)}</span>
                       <Badge variant={invoice.status === 'payé' || invoice.status === 'paid' ? 'success' : invoice.status === 'en_retard' || invoice.status === 'overdue' ? 'danger' : 'warning'}>
                         {invoice.status === 'payé' ? 'Payé' : invoice.status === 'paid' ? 'Payé' : invoice.status === 'en_retard' || invoice.status === 'overdue' ? 'En retard' : invoice.status === 'envoyé' || invoice.status === 'sent' ? 'Envoyé' : 'Brouillon'}
                       </Badge>
+                      <button
+                        onClick={() => handleDeleteInvoice(invoice._id)}
+                        disabled={deleting === invoice._id}
+                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                        title="Supprimer"
+                      >
+                        <FiTrash2 className="text-sm" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -180,7 +226,17 @@ const ClientDetail = () => {
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
                         <p className="font-medium">{interaction.title || interaction.type}</p>
-                        <span className="text-xs text-slate-500">{formatDate(interaction.date)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">{formatDate(interaction.date)}</span>
+                          <button
+                            onClick={() => handleDeleteInteraction(interaction._id)}
+                            disabled={deleting === interaction._id}
+                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            title="Supprimer"
+                          >
+                            <FiTrash2 className="text-sm" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-sm text-slate-500">{interaction.notes || interaction.description}</p>
                     </div>

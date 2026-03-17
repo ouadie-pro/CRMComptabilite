@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Badge, Loading } from '../../components/ui';
 import { invoiceService, clientService, expenseService } from '../../services';
+import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase } from 'react-icons/fi';
 
 const Reports = () => {
+  const { billing } = useSettings();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     revenue: 0,
@@ -16,9 +19,12 @@ const Reports = () => {
   });
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
+  const location = useLocation();
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchReportsData = async () => {
+      setLoading(true);
       try {
         const [invoicesRes, clientsRes, expensesRes] = await Promise.all([
           invoiceService.getAll(),
@@ -120,7 +126,13 @@ const Reports = () => {
     };
 
     fetchReportsData();
-  }, []);
+  }, [location.pathname, refreshKey]);
+
+  const refreshReports = () => {
+    setRefreshKey(prev => prev + 1);
+  };
+
+  window.refreshReports = refreshReports;
 
   const getIcon = (type) => {
     switch (type) {
@@ -164,7 +176,7 @@ const Reports = () => {
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-2xl font-bold">{formatCurrency(stat.value)}</h3>
+                <h3 className="text-2xl font-bold">{formatCurrency(stat.value, billing?.currency || 'MAD')}</h3>
               </div>
             </Card>
           ))}
@@ -221,7 +233,7 @@ const Reports = () => {
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount))}
+                      {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount), billing?.currency || 'MAD')}
                     </p>
                     <Badge variant={tx.status === 'paid' ? 'success' : 'warning'}>{tx.status === 'paid' ? 'Payé' : 'En attente'}</Badge>
                   </div>
