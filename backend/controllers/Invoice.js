@@ -1,6 +1,20 @@
 const Invoice = require('../models/InvoiceSchema');
 const logAudit = require('../utils/auditLogger');
 
+const generateInvoiceNumber = async () => {
+  const currentYear = new Date().getFullYear();
+  const prefix = `FACT-${currentYear}-`;
+  
+  const lastInvoice = await Invoice.findOne({ number: { $regex: `^${prefix}\\d+$` } }).sort({ number: -1 });
+  
+  if (lastInvoice && lastInvoice.number) {
+    const lastNumber = parseInt(lastInvoice.number.replace(prefix, ''));
+    return `${prefix}${String(lastNumber + 1).padStart(4, '0')}`;
+  }
+  
+  return `${prefix}0001`;
+};
+
 const getAllInvoices = async (req, res) => {
   try {
     const { status, clientId, client, startDate, endDate } = req.query;
@@ -54,6 +68,18 @@ const createInvoice = async (req, res) => {
       return res.status(400).json({ message: 'At least one line is required' });
     }
     
+    let finalInvoiceNumber = invoiceNumber;
+    
+    if (!finalInvoiceNumber || finalInvoiceNumber.trim() === '') {
+      finalInvoiceNumber = await generateInvoiceNumber();
+    } else {
+      const existingInvoice = await Invoice.findOne({ number: finalInvoiceNumber.trim() });
+      if (existingInvoice) {
+        return res.status(409).json({ message: 'Ce numéro de facture existe déjà. Veuillez utiliser un autre numéro ou laisser vide pour génération automatique.' });
+      }
+      finalInvoiceNumber = finalInvoiceNumber.trim();
+    }
+    
     const statusMap = { draft: 'brouillon', sent: 'envoyé', paid: 'payé', overdue: 'en_retard', cancelled: 'annulé' };
     
     const Product = require('../models/ProductSchema');
@@ -93,7 +119,7 @@ const createInvoice = async (req, res) => {
     const totalTTC = subtotalHT + totalVat;
     
     const invoiceData = {
-      number: invoiceNumber || `FACT-${Date.now()}`,
+      number: finalInvoiceNumber,
       clientId: client,
       issueDate: date ? new Date(date) : new Date(),
       dueDate: dueDate ? new Date(dueDate) : (date ? new Date(date) : new Date()),
@@ -140,6 +166,13 @@ const updateInvoice = async (req, res) => {
     const existingInvoice = await Invoice.findById(req.params.id);
     if (!existingInvoice) {
       return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    if (number !== undefined && number.trim() !== '') {
+      const duplicateInvoice = await Invoice.findOne({ number: number.trim(), _id: { $ne: req.params.id } });
+      if (duplicateInvoice) {
+        return res.status(409).json({ message: 'Ce numéro de facture existe déjà. Veuillez utiliser un autre numéro.' });
+      }
     }
 
     const Product = require('../models/ProductSchema');

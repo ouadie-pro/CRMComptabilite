@@ -148,8 +148,9 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
           name="invoiceNumber"
           value={formData.invoiceNumber}
           onChange={handleChange}
-          placeholder="FACT-2024-0001"
+          placeholder="FACT-2024-0001 (optionnel)"
         />
+        <p className="text-xs text-slate-500 -mt-2">Laisser vide pour génération automatique</p>
         <Input
           label="Date d'émission"
           name="date"
@@ -395,7 +396,10 @@ const Invoices = () => {
       if (editingInvoice) {
         await invoiceService.update(editingInvoice._id, submitData);
       } else {
-        await invoiceService.create(submitData);
+        const response = await invoiceService.create(submitData);
+        if (response.invoice?.number) {
+          alert(`Facture créée avec succès !\nNuméro: ${response.invoice.number}`);
+        }
       }
       setShowModal(false);
       fetchInvoices();

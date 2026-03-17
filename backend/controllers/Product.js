@@ -1,6 +1,18 @@
 const Product = require('../models/ProductSchema');
 const logAudit = require('../utils/auditLogger');
 
+const generateSKU = async () => {
+  const prefix = 'PRD-';
+  const lastProduct = await Product.findOne({ sku: { $regex: `^${prefix}\\d+$` } }).sort({ sku: -1 });
+  
+  if (lastProduct && lastProduct.sku) {
+    const lastNumber = parseInt(lastProduct.sku.replace(prefix, ''));
+    return `${prefix}${String(lastNumber + 1).padStart(3, '0')}`;
+  }
+  
+  return `${prefix}001`;
+};
+
 const getAllProducts = async (req, res) => {
   try {
     const { category, status } = req.query;
@@ -30,13 +42,26 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, category, ...rest } = req.body;
+    const { price, cost, unit, status, category, sku, ...rest } = req.body;
+    
+    let finalSKU = sku;
+    
+    if (!finalSKU || finalSKU.trim() === '') {
+      finalSKU = await generateSKU();
+    } else {
+      const existingProduct = await Product.findOne({ sku: finalSKU.trim() });
+      if (existingProduct) {
+        return res.status(409).json({ message: 'Ce SKU existe déjà. Veuillez utiliser un autre SKU ou laisser vide pour génération automatique.' });
+      }
+      finalSKU = finalSKU.trim();
+    }
     
     const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
     const statusMap = { active: 'actif', inactive: 'inactif' };
     
     const productData = {
       ...rest,
+      sku: finalSKU,
       priceHT: parseFloat(price) || 0,
       category: category ? (categoryMap[category] || category) : 'service',
       status: status ? (statusMap[status] || status) : 'actif'
@@ -68,13 +93,21 @@ const createProduct = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, category, ...rest } = req.body;
+    const { price, cost, unit, status, category, sku, ...rest } = req.body;
+    
+    if (sku !== undefined && sku.trim() !== '') {
+      const existingProduct = await Product.findOne({ sku: sku.trim(), _id: { $ne: req.params.id } });
+      if (existingProduct) {
+        return res.status(409).json({ message: 'Ce SKU existe déjà. Veuillez utiliser un autre SKU.' });
+      }
+    }
     
     const categoryMap = { product: 'matériel', service: 'service', license: 'licence' };
     const statusMap = { active: 'actif', inactive: 'inactif' };
     
     const productData = {
       ...rest,
+      ...(sku !== undefined && { sku: sku.trim() }),
       ...(price !== undefined && { priceHT: parseFloat(price) || 0 }),
       ...(category && { category: categoryMap[category] || category }),
       ...(status && { status: statusMap[status] || status })

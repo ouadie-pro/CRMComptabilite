@@ -50,8 +50,9 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
           name="sku"
           value={formData.sku}
           onChange={handleChange}
-          placeholder="PRD-001"
+          placeholder="PRD-001 (optionnel)"
         />
+        <p className="text-xs text-slate-500 -mt-2">Laisser vide pour génération automatique</p>
       </div>
       <Input
         label="Description"
@@ -197,12 +198,17 @@ const Products = () => {
       if (editingProduct) {
         await productService.update(editingProduct._id, payload);
       } else {
-        await productService.create(payload);
+        const response = await productService.create(payload);
+        if (response.product?.sku) {
+          alert(`Produit créé avec succès !\nSKU: ${response.product.sku}`);
+        }
       }
       setShowModal(false);
       fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
+      const msg = error.response?.data?.message || 'Erreur lors de l\'enregistrement';
+      alert(msg);
     } finally {
       setSubmitting(false);
     }
