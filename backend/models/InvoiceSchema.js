@@ -60,7 +60,7 @@ const invoiceSchema = new mongoose.Schema({
   
   status: {
     type: String,
-    enum: ["brouillon", "envoyé", "payé", "en_retard", "annulé"],
+    enum: ["brouillon", "envoyé", "partiellement payé", "payé", "en_retard", "annulé"],
     default: "brouillon"
   },
 
@@ -96,6 +96,16 @@ const invoiceSchema = new mongoose.Schema({
   totalTTC: {
     type: Number,
     required: true
+  },
+
+  totalPaid: {
+    type: Number,
+    default: 0
+  },
+
+  remainingAmount: {
+    type: Number,
+    default: function() { return this.totalTTC; }
   }
 
 }, { timestamps: true });

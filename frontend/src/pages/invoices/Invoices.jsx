@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../components/ui';
-import { invoiceService, clientService, productService } from '../../services';
+import { invoiceService, clientService, productService, paymentService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
-import { FiTrash2, FiPlus, FiEdit2, FiDownload } from 'react-icons/fi';
+import { FiTrash2, FiPlus, FiEdit2, FiDownload, FiDollarSign } from 'react-icons/fi';
 
-const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
+const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) => {
   const { billing } = useSettings();
   const defaultVatRate = billing?.vatRate || 20;
   const currency = billing?.currency || 'MAD';
@@ -39,6 +39,10 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
   const [products, setProducts] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [newPayment, setNewPayment] = useState({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
+  const [addingPayment, setAddingPayment] = useState(false);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -64,6 +68,76 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
     fetchClients();
     fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (invoice?._id) {
+      setLoadingPayments(true);
+      paymentService.getAll({ invoiceId: invoice._id })
+        .then(response => {
+          const paymentsData = Array.isArray(response) ? response : response.data || [];
+          setPayments(paymentsData);
+        })
+        .catch(err => console.error('Error fetching payments:', err))
+        .finally(() => setLoadingPayments(false));
+    }
+  }, [invoice?._id, invoice?.totalPaid, invoice?.status]);
+
+  useEffect(() => {
+    if (invoice?.status) {
+      setFormData(prev => ({ ...prev, status: invoice.status }));
+    }
+  }, [invoice?.status]);
+
+  const calculateTotalPaid = () => {
+    return payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  };
+
+  const handleAddPayment = async (e) => {
+    e.preventDefault();
+    if (!newPayment.amount || parseFloat(newPayment.amount) <= 0) {
+      alert('Veuillez entrer un montant valide');
+      return;
+    }
+    setAddingPayment(true);
+    try {
+      const paymentData = {
+        invoiceId: invoice._id,
+        clientId: invoice.clientId?._id || invoice.clientId,
+        amount: parseFloat(newPayment.amount),
+        method: newPayment.method,
+        paidAt: newPayment.paidAt,
+      };
+      const response = await paymentService.create(paymentData);
+      
+      if (response.invoice) {
+        onInvoiceUpdate(response.invoice);
+      }
+      
+      const paymentsResponse = await paymentService.getAll({ invoiceId: invoice._id });
+      setPayments(Array.isArray(paymentsResponse) ? paymentsResponse : paymentsResponse.data || []);
+      setNewPayment({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
+    } catch (error) {
+      console.error('Error adding payment:', error);
+      alert('Erreur lors de l\'ajout du paiement');
+    } finally {
+      setAddingPayment(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId) => {
+    if (!window.confirm('Supprimer ce paiement ?')) return;
+    try {
+      const response = await paymentService.delete(paymentId);
+      if (response.invoice) {
+        onInvoiceUpdate(response.invoice);
+      }
+      const paymentsResponse = await paymentService.getAll({ invoiceId: invoice._id });
+      setPayments(Array.isArray(paymentsResponse) ? paymentsResponse : paymentsResponse.data || []);
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      alert('Erreur lors de la suppression');
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -300,6 +374,134 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading }) => {
           </div>
         </div>
       </div>
+
+      {/* Payments Section - Only show when editing existing invoice */}
+      {invoice?._id && (
+        <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+            <FiDollarSign className="text-primary" />
+            Paiements
+          </h3>
+          
+          {/* Payment Summary */}
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+              <div className="text-xs text-slate-500">Total facture</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-white">
+                {formatCurrency(invoice.totalTTC || totals.total, currency)}
+              </div>
+            </div>
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+              <div className="text-xs text-slate-500">Total payé</div>
+              <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                {formatCurrency(invoice.totalPaid ?? calculateTotalPaid(), currency)}
+              </div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+              <div className="text-xs text-slate-500">Reste à payer</div>
+              <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                {formatCurrency(invoice.remainingAmount ?? (invoice.totalTTC - calculateTotalPaid()), currency)}
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+              <div className="text-xs text-slate-500">Statut</div>
+              <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 capitalize">
+                {invoice.status === 'partiellement payé' ? 'Partiellement payé' : 
+                 invoice.status === 'en_retard' ? 'En retard' : 
+                 invoice.status || 'brouillon'}
+              </div>
+            </div>
+          </div>
+
+          {/* Add Payment Form */}
+          <form onSubmit={handleAddPayment} className="flex items-end gap-3 mb-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+            <div className="flex-1">
+              <Input
+                label="Montant"
+                type="number"
+                step="0.01"
+                min="0"
+                value={newPayment.amount}
+                onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="flex-1">
+              <Select
+                label="Méthode"
+                value={newPayment.method}
+                onChange={(e) => setNewPayment({ ...newPayment, method: e.target.value })}
+              >
+                <option value="virement">Virement</option>
+                <option value="cache">Espèces</option>
+                <option value="cheque">Chèque</option>
+                <option value="trait">Traite</option>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Input
+                label="Date"
+                type="date"
+                value={newPayment.paidAt}
+                onChange={(e) => setNewPayment({ ...newPayment, paidAt: e.target.value })}
+              />
+            </div>
+            <div>
+              <Button type="submit" loading={addingPayment}>
+                <FiPlus className="text-sm" />
+                Ajouter
+              </Button>
+            </div>
+          </form>
+
+          {/* Payments List */}
+          {loadingPayments ? (
+            <div className="text-center py-4 text-slate-500">Chargement...</div>
+          ) : payments.length > 0 ? (
+            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800">
+                  <tr>
+                    <th className="text-left px-4 py-2 text-slate-500">Date</th>
+                    <th className="text-left px-4 py-2 text-slate-500">Méthode</th>
+                    <th className="text-right px-4 py-2 text-slate-500">Montant</th>
+                    <th className="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {payments.map((payment) => (
+                    <tr key={payment._id}>
+                      <td className="px-4 py-2">{formatDateShort(payment.paidAt)}</td>
+                      <td className="px-4 py-2 capitalize">
+                        {payment.method === 'virement' && 'Virement'}
+                        {payment.method === 'cache' && 'Espèces'}
+                        {payment.method === 'cheque' && 'Chèque'}
+                        {payment.method === 'trait' && 'Traite'}
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium text-green-600 dark:text-green-400">
+                        {formatCurrency(payment.amount, currency)}
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePayment(payment._id)}
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <FiTrash2 className="text-sm" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-slate-500 text-sm">
+              Aucun paiement enregistré
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Notes */}
       <Input
@@ -548,6 +750,7 @@ const Invoices = () => {
           onSubmit={handleSubmit}
           onCancel={() => setShowModal(false)}
           loading={submitting}
+          onInvoiceUpdate={(updatedInvoice) => setEditingInvoice(updatedInvoice)}
         />
       </Modal>
     </PageLayout>

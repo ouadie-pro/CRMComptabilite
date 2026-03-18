@@ -1,4 +1,26 @@
 const Payment = require('../models/PaymentSchema');
+const Invoice = require('../models/InvoiceSchema');
+
+const calculateInvoiceStatus = (totalPaid, totalTTC) => {
+  if (totalPaid >= totalTTC) return 'payé';
+  if (totalPaid > 0) return 'partiellement payé';
+  return 'envoyé';
+};
+
+const updateInvoicePaymentTotals = async (invoiceId) => {
+  const payments = await Payment.find({ invoiceId });
+  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const invoice = await Invoice.findById(invoiceId);
+  if (!invoice) return null;
+  
+  const newStatus = calculateInvoiceStatus(totalPaid, invoice.totalTTC);
+  invoice.totalPaid = totalPaid;
+  invoice.remainingAmount = invoice.totalTTC - totalPaid;
+  invoice.status = newStatus;
+  await invoice.save();
+  
+  return { totalPaid, remainingAmount: invoice.remainingAmount, status: newStatus };
+};
 
 const getAllPayments = async (req, res) => {
   try {
@@ -40,7 +62,15 @@ const createPayment = async (req, res) => {
     const populatedPayment = await Payment.findById(payment._id)
       .populate('clientId', 'companyName email')
       .populate('invoiceId', 'number totalTTC');
-    res.status(201).json({ message: 'Payment created successfully', payment: populatedPayment });
+    
+    const updatedInvoice = await updateInvoicePaymentTotals(payment.invoiceId);
+    const invoice = await Invoice.findById(payment.invoiceId);
+    
+    res.status(201).json({ 
+      message: 'Payment created successfully', 
+      payment: populatedPayment,
+      invoice 
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -70,7 +100,9 @@ const deletePayment = async (req, res) => {
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
-    res.status(200).json({ message: 'Payment deleted successfully' });
+    await updateInvoicePaymentTotals(payment.invoiceId);
+    const invoice = await Invoice.findById(payment.invoiceId);
+    res.status(200).json({ message: 'Payment deleted successfully', invoice });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
