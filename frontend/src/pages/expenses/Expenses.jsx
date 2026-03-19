@@ -10,11 +10,12 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
   const { billing } = useSettings();
   const [formData, setFormData] = useState({
     description: expense?.description || '',
-    category: expense?.category || 'salaire',
+    category: expense?.category || 'autre',
     amount: expense?.amount !== undefined ? String(expense.amount) : '',
     date: expense?.date?.split('T')[0] || new Date().toISOString().split('T')[0],
     vendor: expense?.vendor || '',
     status: expense?.status || 'pending',
+    paymentMethod: expense?.paymentMethod || 'cash',
   });
 
   const handleChange = (e) => {
@@ -58,6 +59,14 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
         <option value="approved">Approuvé</option>
         <option value="rejected">Rejeté</option>
       </Select>
+      <Select label="Méthode de paiement" name="paymentMethod" value={formData.paymentMethod} onChange={handleChange}>
+        <option value="cash">Espèces</option>
+        <option value="virement">Virement</option>
+        <option value="cheque">Chèque</option>
+        <option value="carte">Carte bancaire</option>
+        <option value="traite">Traite</option>
+        <option value="autre">Autre</option>
+      </Select>
       <div className="flex justify-end gap-3 pt-4">
         <Button type="button" variant="secondary" onClick={onCancel}>Annuler</Button>
         <Button type="submit" loading={loading}>Enregistrer</Button>
@@ -99,6 +108,7 @@ const Expenses = () => {
       else await expenseService.create(data);
       setShowModal(false);
       fetchExpenses();
+      window.dispatchEvent(new Event('cashDataRefresh'));
       if (window.refreshReports) window.refreshReports();
     } catch (err) {
       console.error('Error saving expense:', err);
@@ -113,6 +123,7 @@ const Expenses = () => {
     try {
       await expenseService.delete(expenseId);
       fetchExpenses();
+      window.dispatchEvent(new Event('cashDataRefresh'));
       if (window.refreshReports) window.refreshReports();
     } catch (error) {
       console.error('Error deleting expense:', error);

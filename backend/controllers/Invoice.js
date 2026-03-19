@@ -1,4 +1,6 @@
 const Invoice = require('../models/InvoiceSchema');
+const Payment = require('../models/PaymentSchema');
+const CashTransaction = require('../models/CashTransactionSchema');
 const logAudit = require('../utils/auditLogger');
 
 const generateInvoiceNumber = async () => {
@@ -264,19 +266,32 @@ const updateInvoice = async (req, res) => {
 
 const deleteInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndDelete(req.params.id);
+    const invoice = await Invoice.findById(req.params.id);
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
     }
+
+    const invoiceId = invoice._id;
+
+    const payments = await Payment.find({ invoiceId });
+    const paymentIds = payments.map(p => p._id);
+
+    if (paymentIds.length > 0) {
+      await CashTransaction.deleteMany({ linkedInvoiceId: invoiceId });
+      await Payment.deleteMany({ invoiceId });
+    }
+
+    await Invoice.findByIdAndDelete(req.params.id);
+    
     await logAudit({
       userId: req.user?._id,
       action: "delete",
       entity: "Invoice",
       entityId: req.params.id,
-      changes: { message: "Invoice deleted" },
+      changes: { message: "Invoice deleted", cascadeDeletedPayments: paymentIds.length },
       req
     });
-    res.status(200).json({ message: 'Invoice deleted successfully' });
+    res.status(200).json({ message: 'Invoice deleted successfully', deletedPayments: paymentIds.length });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

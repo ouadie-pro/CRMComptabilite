@@ -10,6 +10,7 @@ export const DataTable = ({
   onRowClick,
   pagination,
   actions,
+  rowClassName = '',
 }) => {
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
@@ -88,6 +89,7 @@ export const DataTable = ({
                   className={`
                     hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors
                     ${onRowClick ? 'cursor-pointer' : ''}
+                    ${rowClassName}
                   `}
                   onClick={() => onRowClick?.(row)}
                 >

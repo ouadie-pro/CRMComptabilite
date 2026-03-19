@@ -43,6 +43,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [newPayment, setNewPayment] = useState({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
   const [addingPayment, setAddingPayment] = useState(false);
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchClients = async () => {
@@ -79,8 +80,10 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
         })
         .catch(err => console.error('Error fetching payments:', err))
         .finally(() => setLoadingPayments(false));
+    } else {
+      setPayments([]);
     }
-  }, [invoice?._id, invoice?.totalPaid, invoice?.status]);
+  }, [invoice?._id, invoice?.updatedAt, paymentsRefreshKey]);
 
   useEffect(() => {
     if (invoice?.status) {
@@ -107,14 +110,10 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
         method: newPayment.method,
         paidAt: newPayment.paidAt,
       };
-      const response = await paymentService.create(paymentData);
+      await paymentService.create(paymentData);
       
-      if (response.invoice) {
-        onInvoiceUpdate(response.invoice);
-      }
-      
-      const paymentsResponse = await paymentService.getAll({ invoiceId: invoice._id });
-      setPayments(Array.isArray(paymentsResponse) ? paymentsResponse : paymentsResponse.data || []);
+      setPaymentsRefreshKey(prev => prev + 1);
+      window.dispatchEvent(new Event('cashDataRefresh'));
       setNewPayment({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
     } catch (error) {
       console.error('Error adding payment:', error);
@@ -127,12 +126,9 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
   const handleDeletePayment = async (paymentId) => {
     if (!window.confirm('Supprimer ce paiement ?')) return;
     try {
-      const response = await paymentService.delete(paymentId);
-      if (response.invoice) {
-        onInvoiceUpdate(response.invoice);
-      }
-      const paymentsResponse = await paymentService.getAll({ invoiceId: invoice._id });
-      setPayments(Array.isArray(paymentsResponse) ? paymentsResponse : paymentsResponse.data || []);
+      await paymentService.delete(paymentId);
+      setPaymentsRefreshKey(prev => prev + 1);
+      window.dispatchEvent(new Event('cashDataRefresh'));
     } catch (error) {
       console.error('Error deleting payment:', error);
       alert('Erreur lors de la suppression');

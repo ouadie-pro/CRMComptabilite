@@ -15,6 +15,7 @@ import Reports from './pages/reports/Reports';
 import Audit from './pages/reports/Audit';
 import Settings from './pages/settings/Settings';
 import Interactions from './pages/interactions/Interactions';
+import Caisse from './pages/comptable/Caisse';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -90,6 +91,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ComptableDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/caisse"
+        element={
+          <ProtectedRoute>
+            <Caisse />
           </ProtectedRoute>
         }
       />

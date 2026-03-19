@@ -229,3 +229,40 @@ export const companyService = {
     return response.data;
   },
 };
+
+export const cashTransactionService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/cash-transactions', { params });
+    return response.data;
+  },
+
+  getSummary: async (params = {}) => {
+    const response = await api.get('/cash-transactions/summary', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/cash-transactions/${id}`);
+    return response.data;
+  },
+
+  create: async (data) => {
+    const response = await api.post('/cash-transactions', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/cash-transactions/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/cash-transactions/${id}`);
+    return response.data;
+  },
+
+  reconcile: async () => {
+    const response = await api.post('/cash-transactions/reconcile');
+    return response.data;
+  },
+};

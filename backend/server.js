@@ -22,6 +22,7 @@ app.use('/api/reminders', require('./routers/reminder'));
 app.use('/api/payment-gateways', require('./routers/paymentGateway'));
 app.use('/api/interactions', require('./routers/interaction'));
 app.use('/api/audit-logs', require('./routers/auditLog'));
+app.use('/api/cash-transactions', require('./routers/cashTransaction'));
 app.use('/api/settings', require('./routers/settings'));
 
 app.use((err, req, res, next) => {

@@ -22,6 +22,11 @@ const expenseSchema = new mongoose.Schema({
   vendor: {
     type: String
   },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'virement', 'cheque', 'carte', 'traite', 'autre'],
+    default: 'cash'
+  },
   status: {
     type: String,
     enum: ["pending", "approved", "rejected"],

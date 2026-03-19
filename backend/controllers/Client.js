@@ -102,7 +102,7 @@ const updateClient = async (req, res) => {
       ...(companyName && { companyName }),
       ...(contactName && { contactName }),
       ...(contactTitle && { contactTitle }),
-      ...(status && { status: status === 'active' ? 'actif' : 'inactif' }),
+      ...(status && { status: status === 'active' ? 'actif' : 'archivé' }),
       ...(city && { city }),
       ...(country && { country }),
     };
