@@ -112,6 +112,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
       };
       await paymentService.create(paymentData);
       
+      const updatedInvoice = await invoiceService.getById(invoice._id);
+      if (onInvoiceUpdate) onInvoiceUpdate(updatedInvoice);
       setPaymentsRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('cashUpdated'));
       setNewPayment({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
@@ -127,6 +129,9 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
     if (!window.confirm('Supprimer ce paiement ?')) return;
     try {
       await paymentService.delete(paymentId);
+      
+      const updatedInvoice = await invoiceService.getById(invoice._id);
+      if (onInvoiceUpdate) onInvoiceUpdate(updatedInvoice);
       setPaymentsRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('cashUpdated'));
     } catch (error) {

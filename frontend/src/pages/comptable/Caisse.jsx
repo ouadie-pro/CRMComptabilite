@@ -878,52 +878,52 @@ const Caisse = () => {
                   {group.transactions.map((transaction) => (
                     <div
                       key={transaction._id}
-                      className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group flex items-center gap-4"
+                      className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group flex items-center gap-3"
                       onClick={() => handleViewTransaction(transaction)}
                     >
-                      <div className={`p-2 rounded-lg ${transaction.type === 'in' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                      <div className={`flex-shrink-0 p-2 rounded-lg ${transaction.type === 'in' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                         {transaction.type === 'in' ? <FiArrowUpCircle /> : <FiArrowDownCircle />}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-medium text-slate-900 dark:text-white truncate">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="font-medium text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-none">
                             {transaction.description}
                           </span>
                           {getSourceBadge(transaction.source)}
                           {transaction.status === 'pending' && (
-                            <Badge variant="warning" className="text-xs">En attente</Badge>
+                            <Badge variant="warning" className="text-xs shrink-0">En attente</Badge>
                           )}
                           {(transaction.source === 'invoice' || transaction.source === 'expense') && (
-                            <span className="text-emerald-500"><FiCheck className="text-xs" /></span>
+                            <span className="text-emerald-500 shrink-0"><FiCheck className="text-xs" /></span>
                           )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-slate-500">
-                          <span>{getMethodLabel(transaction.method)}</span>
-                          <span className="capitalize">{transaction.category}</span>
-                          {transaction.reference && <span className="font-mono">{transaction.reference}</span>}
+                          <span className="shrink-0">{getMethodLabel(transaction.method)}</span>
+                          <span className="capitalize shrink-0">{transaction.category}</span>
+                          {transaction.reference && <span className="font-mono truncate max-w-[100px]">{transaction.reference}</span>}
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className={`font-semibold ${transaction.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <div className="flex-shrink-0 text-right min-w-[100px]">
+                        <span className={`font-semibold whitespace-nowrap ${transaction.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
                           {transaction.type === 'in' ? '+' : '-'}{formatCurrency(transaction.amount, currency)}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex-shrink-0 flex items-center justify-end gap-1 w-16 opacity-0 group-hover:opacity-100 transition-opacity">
                         {transaction.source === 'manual' && (
                           <>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleEditTransaction(transaction); }}
-                              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
+                              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded shrink-0"
                               title="Modifier"
                             >
                               <FiEdit2 className="text-xs" />
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(transaction._id); }}
-                              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500"
+                              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500 shrink-0"
                               title="Supprimer"
                             >
                               <FiX className="text-xs" />

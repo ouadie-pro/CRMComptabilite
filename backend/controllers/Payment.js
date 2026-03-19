@@ -65,15 +65,14 @@ const createPayment = async (req, res) => {
       .populate('clientId', 'companyName email')
       .populate('invoiceId', 'number totalTTC clientId');
     
-    const updatedInvoice = await updateInvoicePaymentTotals(payment.invoiceId);
+    await updateInvoicePaymentTotals(payment.invoiceId);
     const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
-    
     await CashTransaction.createFromPayment(populatedPayment, invoice, req.user?._id);
     
     res.status(201).json({ 
       message: 'Payment created successfully', 
       payment: populatedPayment,
-      invoice: updatedInvoice
+      invoice: invoice
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -111,10 +110,11 @@ const deletePayment = async (req, res) => {
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
-    await updateInvoicePaymentTotals(payment.invoiceId);
-    await CashTransaction.deleteBySourceId(payment._id);
     
     await Payment.findByIdAndDelete(req.params.id);
+    await CashTransaction.deleteBySourceId(payment._id);
+    await updateInvoicePaymentTotals(payment.invoiceId);
+    
     res.status(200).json({ message: 'Payment deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
