@@ -17,6 +17,7 @@ const adminNavItems = [
 
 const comptableNavItems = [
   { path: '/comptable/dashboard', icon: FiGrid, label: 'Dashboard' },
+  { path: '/comptable/caisse', icon: FiDollarSign, label: 'Caisse' },
   { path: '/invoices', icon: FiFileText, label: 'Factures' },
   { path: '/expenses', icon: FiDollarSign, label: 'Dépenses' },
   { path: '/reports', icon: FiBarChart2, label: 'Rapports financiers' },

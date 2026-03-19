@@ -241,6 +241,11 @@ export const cashTransactionService = {
     return response.data;
   },
 
+  getChartData: async (params = {}) => {
+    const response = await api.get('/cash-transactions/chart', { params });
+    return response.data;
+  },
+
   getById: async (id) => {
     const response = await api.get(`/cash-transactions/${id}`);
     return response.data;

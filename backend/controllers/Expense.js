@@ -2,76 +2,6 @@ const Expense = require('../models/ExpenseSchema');
 const CashTransaction = require('../models/CashTransactionSchema');
 const logAudit = require('../utils/auditLogger');
 
-const categoryMap = {
-  'salaire': 'salary',
-  'loyer': 'rent',
-  'services': 'service',
-  'fournitures': 'supply',
-  'transport': 'transport',
-  'autre': 'other',
-  'salary': 'salary',
-  'rent': 'rent',
-  'service': 'service',
-  'supply': 'supply',
-  'utility': 'utility',
-  'deposit': 'deposit',
-  'withdrawal': 'withdrawal'
-};
-
-const mapExpenseCategory = (category) => {
-  return categoryMap[category] || 'other';
-};
-
-const createOrUpdateCashTransactionFromExpense = async (expense) => {
-  try {
-    const existingTransaction = await CashTransaction.findOne({ sourceId: expense._id });
-    const statusLabel = expense.status === 'approved' ? 'Approuvé' : expense.status === 'pending' ? 'En attente' : expense.status === 'rejected' ? 'Rejeté' : expense.status;
-    const description = expense.vendor 
-      ? `${expense.description} - ${expense.vendor} [${statusLabel}]`
-      : `${expense.description} [${statusLabel}]`;
-    
-    if (existingTransaction) {
-      existingTransaction.amount = expense.amount;
-      existingTransaction.method = expense.paymentMethod || 'cash';
-      existingTransaction.date = expense.date || new Date();
-      existingTransaction.description = description;
-      existingTransaction.category = mapExpenseCategory(expense.category);
-      existingTransaction.status = expense.status === 'approved' ? 'confirmed' : expense.status === 'pending' ? 'pending' : 'rejected';
-      await existingTransaction.save();
-      return existingTransaction;
-    }
-
-    const cashTransaction = new CashTransaction({
-      type: 'out',
-      amount: expense.amount,
-      method: expense.paymentMethod || 'cash',
-      date: expense.date || new Date(),
-      description: description,
-      source: 'expense',
-      category: mapExpenseCategory(expense.category),
-      sourceId: expense._id,
-      reference: `EXP-${expense._id}`,
-      linkedInvoiceId: null,
-      linkedExpenseId: expense._id,
-      userId: expense.userId,
-      status: expense.status === 'approved' ? 'confirmed' : expense.status === 'pending' ? 'pending' : 'rejected'
-    });
-    await cashTransaction.save();
-    return cashTransaction;
-  } catch (error) {
-    console.error('Error creating/updating cash transaction from expense:', error);
-    return null;
-  }
-};
-
-const deleteCashTransactionBySourceId = async (sourceId) => {
-  try {
-    await CashTransaction.findOneAndDelete({ sourceId });
-  } catch (error) {
-    console.error('Error deleting cash transaction:', error);
-  }
-};
-
 const getAllExpenses = async (req, res) => {
   try {
     const { category, status, startDate, endDate } = req.query;
@@ -83,7 +13,7 @@ const getAllExpenses = async (req, res) => {
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
+      if (endDate) query.date.$lte = new Date(endDate + 'T23:59:59.999Z');
     }
 
     const expenses = await Expense.find(query).sort({ date: -1 });
@@ -113,7 +43,7 @@ const createExpense = async (req, res) => {
     });
     await expense.save();
     
-    await createOrUpdateCashTransactionFromExpense(expense);
+    await CashTransaction.createFromExpense(expense, req.user?._id);
     
     await logAudit({
       userId: req.user?._id,
@@ -131,7 +61,6 @@ const createExpense = async (req, res) => {
 
 const updateExpense = async (req, res) => {
   try {
-    const oldExpense = await Expense.findById(req.params.id);
     const expense = await Expense.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -141,7 +70,7 @@ const updateExpense = async (req, res) => {
       return res.status(404).json({ message: 'Expense not found' });
     }
     
-    await createOrUpdateCashTransactionFromExpense(expense);
+    await CashTransaction.createFromExpense(expense, req.user?._id);
     
     await logAudit({
       userId: req.user?._id,
@@ -164,7 +93,7 @@ const deleteExpense = async (req, res) => {
       return res.status(404).json({ message: 'Expense not found' });
     }
     
-    await deleteCashTransactionBySourceId(expense._id);
+    await CashTransaction.deleteBySourceId(expense._id);
     
     await logAudit({
       userId: req.user?._id,

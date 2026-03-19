@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { PageLayout } from '../../components/layout';
 import { Card, Button, Input, Select, Loading } from '../../components/ui';
 import { useSettings } from '../../context/SettingsContext';
-import { FiCamera, FiMail, FiRefreshCw } from 'react-icons/fi';
-import { cashTransactionService } from '../../services';
+import { FiCamera, FiMail } from 'react-icons/fi';
 import api, { BACKEND_URL } from '../../services/api';
 
 const Settings = () => {
@@ -32,8 +31,6 @@ const Settings = () => {
     secondReminder: 7,
     smtpHost: '',
   });
-  const [reconcileLoading, setReconcileLoading] = useState(false);
-  const [reconcileResult, setReconcileResult] = useState(null);
   const [activeTab, setActiveTab] = useState('company');
 
   useEffect(() => {
@@ -89,21 +86,6 @@ const Settings = () => {
     }
   };
 
-  const handleReconcile = async () => {
-    if (!window.confirm('Cette action va créer des transactions pour tous les paiements et dépenses qui ne sont pas encore liés à la caisse. Continuer?')) return;
-    setReconcileLoading(true);
-    setReconcileResult(null);
-    try {
-      const result = await cashTransactionService.reconcile();
-      setReconcileResult(result);
-      window.dispatchEvent(new Event('cashDataRefresh'));
-    } catch (error) {
-      setReconcileResult({ error: true, message: error.response?.data?.message || 'Erreur lors de la réconciliation' });
-    } finally {
-      setReconcileLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <PageLayout title="Paramètres Système">
@@ -117,10 +99,9 @@ const Settings = () => {
   return (
     <PageLayout title="Paramètres Système">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Tabs */}
         <div className="border-b border-slate-200 dark:border-slate-800">
           <nav className="flex gap-8">
-            {['company', 'billing', 'notifications', 'caisse'].map((tab) => (
+            {['company', 'billing', 'notifications'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -130,13 +111,12 @@ const Settings = () => {
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {tab === 'company' ? 'Infos Entreprise' : tab === 'billing' ? 'Facturation' : tab === 'notifications' ? 'Notifications' : 'Caisse'}
+                {tab === 'company' ? 'Infos Entreprise' : tab === 'billing' ? 'Facturation' : 'Notifications'}
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Company Info */}
         {activeTab === 'company' && (
           <Card title="Informations de l'Entreprise">
             <div className="space-y-6">
@@ -171,7 +151,6 @@ const Settings = () => {
           </Card>
         )}
 
-        {/* Billing */}
         {activeTab === 'billing' && (
           <Card title="Configuration de Facturation">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -186,7 +165,6 @@ const Settings = () => {
           </Card>
         )}
 
-        {/* Notifications */}
         {activeTab === 'notifications' && (
           <Card title="Alertes & Notifications">
             <div className="space-y-6">
@@ -220,43 +198,6 @@ const Settings = () => {
           </Card>
         )}
 
-        {/* Caisse */}
-        {activeTab === 'caisse' && (
-          <Card title="Réconciliation de la Caisse">
-            <div className="space-y-6">
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                <div className="flex items-start gap-3">
-                  <FiRefreshCw className="text-amber-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-bold text-amber-800 dark:text-amber-200 mb-1">Réconciliation Automatique</p>
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mb-4">
-                      Cette action crée des transactions pour tous les paiements et dépenses qui ne sont pas encore liés à la caisse. 
-                      Utilisez cette fonction pour synchroniser les données historiques ou corriger les incohérences.
-                    </p>
-                    <Button onClick={handleReconcile} disabled={reconcileLoading} variant="secondary">
-                      {reconcileLoading ? 'Réconciliation en cours...' : 'Réconcilier la Caisse'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              {reconcileResult && (
-                <div className={`p-4 rounded-lg ${reconcileResult.error ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'}`}>
-                  {reconcileResult.error ? (
-                    <p className="text-sm text-red-700 dark:text-red-300">{reconcileResult.message}</p>
-                  ) : (
-                    <div className="text-sm text-green-700 dark:text-green-300 space-y-1">
-                      <p className="font-bold">Réconciliation terminée avec succès!</p>
-                      <p>{reconcileResult.createdForPayments} paiements liés ({reconcileResult.totalPaymentAmount?.toLocaleString()} MAD)</p>
-                      <p>{reconcileResult.createdForExpenses} dépenses liées ({reconcileResult.totalExpenseAmount?.toLocaleString()} MAD)</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* Actions */}
         <div className="flex justify-end gap-4">
           <Button variant="secondary">Réinitialiser</Button>
           <Button onClick={handleSave} disabled={saving}>

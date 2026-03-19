@@ -108,7 +108,7 @@ const Expenses = () => {
       else await expenseService.create(data);
       setShowModal(false);
       fetchExpenses();
-      window.dispatchEvent(new Event('cashDataRefresh'));
+      window.dispatchEvent(new Event('cashUpdated'));
       if (window.refreshReports) window.refreshReports();
     } catch (err) {
       console.error('Error saving expense:', err);
@@ -123,7 +123,7 @@ const Expenses = () => {
     try {
       await expenseService.delete(expenseId);
       fetchExpenses();
-      window.dispatchEvent(new Event('cashDataRefresh'));
+      window.dispatchEvent(new Event('cashUpdated'));
       if (window.refreshReports) window.refreshReports();
     } catch (error) {
       console.error('Error deleting expense:', error);

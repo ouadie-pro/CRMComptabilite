@@ -24,60 +24,6 @@ const updateInvoicePaymentTotals = async (invoiceId) => {
   return { totalPaid, remainingAmount: invoice.remainingAmount, status: newStatus };
 };
 
-const mapPaymentMethod = (method) => {
-  const methodMap = {
-    'cache': 'cash',
-    'trait': 'traite',
-    'virement': 'virement',
-    'cheque': 'cheque',
-    'carte': 'carte'
-  };
-  return methodMap[method] || 'cash';
-};
-
-const createOrUpdateCashTransactionFromPayment = async (payment, invoice) => {
-  try {
-    const existingTransaction = await CashTransaction.findOne({ sourceId: payment._id });
-    
-    if (existingTransaction) {
-      existingTransaction.amount = payment.amount;
-      existingTransaction.method = mapPaymentMethod(payment.method);
-      existingTransaction.date = payment.paidAt || new Date();
-      existingTransaction.description = `Paiement facture #${invoice?.number || 'N/A'} - ${invoice?.clientId?.companyName || 'Client'}`;
-      await existingTransaction.save();
-      return existingTransaction;
-    }
-    
-    const cashTransaction = new CashTransaction({
-      type: 'in',
-      amount: payment.amount,
-      method: mapPaymentMethod(payment.method),
-      date: payment.paidAt || new Date(),
-      description: `Paiement facture #${invoice?.number || payment.invoiceId} - ${invoice?.clientId?.companyName || 'Client'}`,
-      source: 'invoice',
-      category: 'sale',
-      sourceId: payment._id,
-      reference: `PAY-${payment._id}`,
-      linkedInvoiceId: payment.invoiceId,
-      linkedExpenseId: null,
-      userId: payment.clientId
-    });
-    await cashTransaction.save();
-    return cashTransaction;
-  } catch (error) {
-    console.error('Error creating/updating cash transaction from payment:', error);
-    return null;
-  }
-};
-
-const deleteCashTransactionBySourceId = async (sourceId) => {
-  try {
-    await CashTransaction.findOneAndDelete({ sourceId });
-  } catch (error) {
-    console.error('Error deleting cash transaction:', error);
-  }
-};
-
 const getAllPayments = async (req, res) => {
   try {
     const { clientId, invoiceId, method } = req.query;
@@ -122,12 +68,12 @@ const createPayment = async (req, res) => {
     const updatedInvoice = await updateInvoicePaymentTotals(payment.invoiceId);
     const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
     
-    await createOrUpdateCashTransactionFromPayment(populatedPayment, invoice);
+    await CashTransaction.createFromPayment(populatedPayment, invoice, req.user?._id);
     
     res.status(201).json({ 
       message: 'Payment created successfully', 
       payment: populatedPayment,
-      invoice 
+      invoice: updatedInvoice
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -149,11 +95,9 @@ const updatePayment = async (req, res) => {
       return res.status(404).json({ message: 'Payment not found' });
     }
     
-    if (oldPayment) {
-      await updateInvoicePaymentTotals(payment.invoiceId);
-      const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
-      await createOrUpdateCashTransactionFromPayment(payment, invoice);
-    }
+    await updateInvoicePaymentTotals(payment.invoiceId);
+    const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
+    await CashTransaction.createFromPayment(payment, invoice, req.user?._id);
     
     res.status(200).json({ message: 'Payment updated successfully', payment });
   } catch (error) {
@@ -163,16 +107,15 @@ const updatePayment = async (req, res) => {
 
 const deletePayment = async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndDelete(req.params.id);
+    const payment = await Payment.findById(req.params.id);
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
     }
     await updateInvoicePaymentTotals(payment.invoiceId);
-    const invoice = await Invoice.findById(payment.invoiceId);
+    await CashTransaction.deleteBySourceId(payment._id);
     
-    await deleteCashTransactionBySourceId(payment._id);
-    
-    res.status(200).json({ message: 'Payment deleted successfully', invoice });
+    await Payment.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: 'Payment deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

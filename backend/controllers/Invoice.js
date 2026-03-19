@@ -1,6 +1,5 @@
 const Invoice = require('../models/InvoiceSchema');
 const Payment = require('../models/PaymentSchema');
-const CashTransaction = require('../models/CashTransactionSchema');
 const logAudit = require('../utils/auditLogger');
 
 const generateInvoiceNumber = async () => {
@@ -277,7 +276,6 @@ const deleteInvoice = async (req, res) => {
     const paymentIds = payments.map(p => p._id);
 
     if (paymentIds.length > 0) {
-      await CashTransaction.deleteMany({ linkedInvoiceId: invoiceId });
       await Payment.deleteMany({ invoiceId });
     }
 

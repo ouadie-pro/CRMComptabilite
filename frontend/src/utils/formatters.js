@@ -34,6 +34,16 @@ export const formatDateTime = (date) => {
   }).format(new Date(date));
 };
 
+export const formatDateFull = (date) => {
+  if (!date) return '';
+  return new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(new Date(date));
+};
+
 export const getInitials = (name) => {
   if (!name) return '';
   return name

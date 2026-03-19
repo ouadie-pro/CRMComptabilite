@@ -9,7 +9,6 @@ const PaymentGateway = require('../models/PaymentGatewaySchema');
 const Payment = require('../models/PaymentSchema');
 const Reminder = require('../models/ReminderSchema');
 const Interaction = require('../models/InteractionSchema');
-const CashTransaction = require('../models/CashTransactionSchema');
 
 const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
 
@@ -167,22 +166,6 @@ async function seedData() {
       }
       const insertedPayments = await Payment.insertMany(payments);
       console.log('✓ Seeded 5 Payments');
-
-      const cashTransactions = insertedPayments.map((payment, i) => ({
-        type: 'in',
-        amount: payment.amount,
-        method: payment.method,
-        date: payment.paidAt,
-        description: `Paiement facture ${invoices[i % invoices.length].number} - ${clients[i % clients.length].companyName}`,
-        source: 'invoice',
-        sourceId: payment._id,
-        reference: payment.reference,
-        linkedInvoiceId: payment.invoiceId,
-        category: 'sale',
-        status: 'confirmed'
-      }));
-      await CashTransaction.insertMany(cashTransactions);
-      console.log('✓ Created 5 CashTransactions for payments');
     } else {
       console.log('✓ Payments already exist or no data to link, skipping');
     }

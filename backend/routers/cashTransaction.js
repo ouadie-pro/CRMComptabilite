@@ -8,13 +8,15 @@ const {
   updateTransaction,
   deleteTransaction,
   getSummary,
-  reconcileTransactions
+  reconcileTransactions,
+  getChartData
 } = require('../controllers/CashTransaction');
 
 Router.use(authMiddleware);
 
 Router.get('/', getAllTransactions);
 Router.get('/summary', getSummary);
+Router.get('/chart', getChartData);
 Router.post('/reconcile', reconcileTransactions);
 Router.get('/:id', getTransactionById);
 Router.post('/', createTransaction);

@@ -1,6 +1,7 @@
 const CashTransaction = require('../models/CashTransactionSchema');
 const Payment = require('../models/PaymentSchema');
 const Expense = require('../models/ExpenseSchema');
+const Invoice = require('../models/InvoiceSchema');
 const logAudit = require('../utils/auditLogger');
 
 const getAllTransactions = async (req, res) => {
@@ -17,7 +18,7 @@ const getAllTransactions = async (req, res) => {
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
+      if (endDate) query.date.$lte = new Date(endDate + 'T23:59:59.999Z');
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -26,7 +27,7 @@ const getAllTransactions = async (req, res) => {
       CashTransaction.find(query)
         .populate('userId', 'name email')
         .populate('linkedInvoiceId', 'number totalTTC clientId status')
-        .populate('linkedExpenseId', 'number description category amount date')
+        .populate('linkedExpenseId', 'description category amount date status')
         .sort({ date: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -35,10 +36,10 @@ const getAllTransactions = async (req, res) => {
 
     const totals = await CashTransaction.aggregate([
       { $match: query },
-      { $group: { _id: '$type', total: { $sum: '$amount' } } }
+      { $group: { _id: '$type', total: { $sum: '$amount' }, count: { $sum: 1 } } }
     ]);
 
-    const result = {
+    res.status(200).json({
       data: transactions,
       pagination: {
         page: parseInt(page),
@@ -50,9 +51,7 @@ const getAllTransactions = async (req, res) => {
         in: totals.find(t => t._id === 'in')?.total || 0,
         out: totals.find(t => t._id === 'out')?.total || 0
       }
-    };
-
-    res.status(200).json(result);
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -63,7 +62,7 @@ const getTransactionById = async (req, res) => {
     const transaction = await CashTransaction.findById(req.params.id)
       .populate('userId', 'name email')
       .populate('linkedInvoiceId', 'number totalTTC clientId status')
-      .populate('linkedExpenseId', 'number description category amount date');
+      .populate('linkedExpenseId', 'description category amount date status');
     
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
@@ -78,19 +77,17 @@ const createTransaction = async (req, res) => {
   try {
     const transaction = new CashTransaction({
       ...req.body,
-      userId: req.user?.id || req.user?._id || req.body.userId,
-      source: req.body.source || 'manual'
+      userId: req.user?._id || req.body.userId,
+      source: 'manual'
     });
     await transaction.save();
     
     const populated = await CashTransaction.findById(transaction._id)
-      .populate('userId', 'name email')
-      .populate('linkedInvoiceId', 'number totalTTC')
-      .populate('linkedExpenseId', 'number description');
+      .populate('userId', 'name email');
     
-    if (req.user?.id || req.user?._id) {
+    if (req.user?._id) {
       await logAudit({
-        userId: req.user.id || req.user._id,
+        userId: req.user._id,
         action: 'Create Cash Transaction',
         entity: 'CashTransaction',
         entityId: transaction._id,
@@ -107,22 +104,28 @@ const createTransaction = async (req, res) => {
 
 const updateTransaction = async (req, res) => {
   try {
-    const transaction = await CashTransaction.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    )
-      .populate('userId', 'name email')
-      .populate('linkedInvoiceId', 'number totalTTC')
-      .populate('linkedExpenseId', 'number description');
+    const transaction = await CashTransaction.findById(req.params.id);
     
     if (!transaction) {
       return res.status(404).json({ message: 'Transaction not found' });
     }
     
-    if (req.user?.id || req.user?._id) {
+    if (transaction.source !== 'manual') {
+      return res.status(400).json({ 
+        message: 'Cannot edit auto-generated transactions. Edit the source record instead.',
+        transaction 
+      });
+    }
+
+    Object.assign(transaction, req.body);
+    await transaction.save();
+    
+    const populated = await CashTransaction.findById(transaction._id)
+      .populate('userId', 'name email');
+    
+    if (req.user?._id) {
       await logAudit({
-        userId: req.user.id || req.user._id,
+        userId: req.user._id,
         action: 'Update Cash Transaction',
         entity: 'CashTransaction',
         entityId: transaction._id,
@@ -131,7 +134,7 @@ const updateTransaction = async (req, res) => {
       });
     }
     
-    res.status(200).json({ message: 'Transaction updated successfully', transaction });
+    res.status(200).json({ message: 'Transaction updated successfully', transaction: populated });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -145,7 +148,7 @@ const deleteTransaction = async (req, res) => {
       return res.status(404).json({ message: 'Transaction not found' });
     }
     
-    if (transaction.source === 'invoice' || transaction.source === 'expense') {
+    if (transaction.source !== 'manual') {
       return res.status(400).json({ 
         message: 'Cannot delete auto-generated transactions. Delete the source record instead.',
         transaction 
@@ -154,9 +157,9 @@ const deleteTransaction = async (req, res) => {
     
     await CashTransaction.findByIdAndDelete(req.params.id);
     
-    if (req.user?.id || req.user?._id) {
+    if (req.user?._id) {
       await logAudit({
-        userId: req.user.id || req.user._id,
+        userId: req.user._id,
         action: 'Delete Cash Transaction',
         entity: 'CashTransaction',
         entityId: req.params.id,
@@ -180,65 +183,62 @@ const getSummary = async (req, res) => {
     if (startDate || endDate) {
       dateFilter.date = {};
       if (startDate) dateFilter.date.$gte = new Date(startDate);
-      if (endDate) dateFilter.date.$lte = new Date(endDate);
+      if (endDate) dateFilter.date.$lte = new Date(endDate + 'T23:59:59.999Z');
     }
 
-    const [cashTotals, byMethod, byCategory, bySource, recent, allPayments, allExpenses, linkedPaymentIds, linkedExpenseIds] = await Promise.all([
+    const [cashTotals, bySource, recent, allPayments, allExpenses, linkedPaymentIds, linkedExpenseIds] = await Promise.all([
       CashTransaction.aggregate([
         { $match: { ...dateFilter, ...baseMatch } },
         { $group: { _id: '$type', total: { $sum: '$amount' }, count: { $sum: 1 } } }
       ]),
       CashTransaction.aggregate([
-        { $match: { ...dateFilter, ...baseMatch, type: 'in' } },
-        { $group: { _id: '$method', total: { $sum: '$amount' } } }
-      ]),
-      CashTransaction.aggregate([
-        { $match: { ...dateFilter, ...baseMatch, type: 'out' } },
-        { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } }
-      ]),
-      CashTransaction.aggregate([
         { $match: { ...dateFilter, ...baseMatch } },
-        { $group: { _id: '$source', totalIn: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, '$amount', 0] } }, totalOut: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } } } }
+        { $group: { 
+          _id: '$source', 
+          totalIn: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, '$amount', 0] } }, 
+          totalOut: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } },
+          count: { $sum: 1 }
+        }}
       ]),
       CashTransaction.find({ ...dateFilter, ...baseMatch })
         .populate('linkedInvoiceId', 'number totalTTC')
-        .populate('linkedExpenseId', 'number description')
+        .populate('linkedExpenseId', 'description')
         .sort({ date: -1 })
-        .limit(10),
+        .limit(5),
       Payment.find(),
-      Expense.find(),
+      Expense.find({ status: { $ne: 'rejected' } }),
       CashTransaction.distinct('sourceId', { source: 'invoice' }),
       CashTransaction.distinct('sourceId', { source: 'expense' }),
     ]);
 
-    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString());
-    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString());
+    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString()).filter(Boolean);
+    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString()).filter(Boolean);
 
-    let orphanedPaymentsTotal = 0;
-    let orphanedPaymentsCount = 0;
-    let orphanedExpensesTotal = 0;
-    let orphanedExpensesCount = 0;
+    let unlinkedPaymentsTotal = 0;
+    let unlinkedPaymentsCount = 0;
+    let unlinkedExpensesTotal = 0;
+    let unlinkedExpensesCount = 0;
 
     allPayments.forEach(p => {
       if (!linkedPaymentIdStrings.includes(p._id.toString())) {
         const paymentDate = new Date(p.paidAt);
         const inDateRange = (!startDate || paymentDate >= new Date(startDate)) &&
-                          (!endDate || paymentDate <= new Date(endDate));
+                          (!endDate || paymentDate <= new Date(endDate + 'T23:59:59.999Z'));
         if (inDateRange) {
-          orphanedPaymentsTotal += p.amount;
-          orphanedPaymentsCount++;
+          unlinkedPaymentsTotal += p.amount;
+          unlinkedPaymentsCount++;
         }
       }
     });
 
     allExpenses.forEach(e => {
-      if (!linkedExpenseIdStrings.includes(e._id.toString()) && e.status !== 'rejected') {
+      if (!linkedExpenseIdStrings.includes(e._id.toString())) {
         const expenseDate = new Date(e.date);
         const inDateRange = (!startDate || expenseDate >= new Date(startDate)) &&
-                          (!endDate || expenseDate <= new Date(endDate));
+                          (!endDate || expenseDate <= new Date(endDate + 'T23:59:59.999Z'));
         if (inDateRange) {
-          orphanedExpensesTotal += e.amount;
-          orphanedExpensesCount++;
+          unlinkedExpensesTotal += e.amount;
+          unlinkedExpensesCount++;
         }
       }
     });
@@ -247,18 +247,12 @@ const getSummary = async (req, res) => {
       balance: 0,
       totalIn: 0,
       totalOut: 0,
+      totalManual: 0,
+      netCashFlow: 0,
       countIn: 0,
       countOut: 0,
-      orphanedPayments: {
-        count: orphanedPaymentsCount,
-        total: orphanedPaymentsTotal
-      },
-      orphanedExpenses: {
-        count: orphanedExpensesCount,
-        total: orphanedExpensesTotal
-      },
-      byMethod: {},
-      byCategory: {},
+      unlinkedPayments: { count: unlinkedPaymentsCount, total: unlinkedPaymentsTotal },
+      unlinkedExpenses: { count: unlinkedExpensesCount, total: unlinkedExpensesTotal },
       bySource: {},
       recent
     };
@@ -275,20 +269,17 @@ const getSummary = async (req, res) => {
       }
     });
 
-    result.totalIn += orphanedPaymentsTotal;
-    result.totalOut += orphanedExpensesTotal;
-    result.balance = result.totalIn - result.totalOut;
-
-    byMethod.forEach(m => {
-      result.byMethod[m._id || 'unknown'] = m.total;
-    });
-
-    byCategory.forEach(c => {
-      result.byCategory[c._id || 'other'] = { total: c.total, count: c.count };
-    });
+    result.netCashFlow = result.totalIn - result.totalOut;
 
     bySource.forEach(s => {
-      result.bySource[s._id || 'unknown'] = { totalIn: s.totalIn, totalOut: s.totalOut };
+      result.bySource[s._id || 'unknown'] = { 
+        totalIn: s.totalIn, 
+        totalOut: s.totalOut,
+        count: s.count
+      };
+      if (s._id === 'manual') {
+        result.totalManual = s.totalIn + s.totalOut;
+      }
     });
 
     res.status(200).json(result);
@@ -301,8 +292,8 @@ const reconcileTransactions = async (req, res) => {
   try {
     const linkedPaymentIds = await CashTransaction.distinct('sourceId', { source: 'invoice' });
     const linkedExpenseIds = await CashTransaction.distinct('sourceId', { source: 'expense' });
-    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString());
-    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString());
+    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString()).filter(Boolean);
+    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString()).filter(Boolean);
 
     const allPayments = await Payment.find();
     const allExpenses = await Expense.find({ status: { $ne: 'rejected' } });
@@ -311,53 +302,12 @@ const reconcileTransactions = async (req, res) => {
     const missingExpenses = allExpenses.filter(e => !linkedExpenseIdStrings.includes(e._id.toString()));
 
     const paymentTransactions = await Promise.all(missingPayments.map(async (payment) => {
-      const transaction = new CashTransaction({
-        type: 'in',
-        amount: payment.amount,
-        method: payment.method,
-        date: payment.paidAt,
-        description: `Paiement ${payment.reference || ''}`.trim(),
-        source: 'invoice',
-        sourceId: payment._id,
-        reference: payment.reference,
-        linkedInvoiceId: payment.invoiceId,
-        category: 'sale',
-        status: 'confirmed',
-        userId: payment.userId
-      });
-      await transaction.save();
-      return transaction;
+      const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
+      return CashTransaction.createFromPayment(payment, invoice, req.user?._id);
     }));
 
     const expenseTransactions = await Promise.all(missingExpenses.map(async (expense) => {
-      const statusLabel = expense.status === 'approved' ? 'Approuvé' : expense.status === 'pending' ? 'En attente' : expense.status;
-      const description = expense.vendor 
-        ? `${expense.description} - ${expense.vendor} [${statusLabel}]`
-        : `${expense.description} [${statusLabel}]`;
-      
-      const categoryMap = {
-        'salaire': 'salary', 'loyer': 'rent', 'services': 'service',
-        'fournitures': 'supply', 'transport': 'transport', 'autre': 'other',
-        'salary': 'salary', 'rent': 'rent', 'service': 'service',
-        'supply': 'supply', 'utility': 'utility', 'deposit': 'deposit', 'withdrawal': 'withdrawal'
-      };
-      
-      const transaction = new CashTransaction({
-        type: 'out',
-        amount: expense.amount,
-        method: expense.paymentMethod || 'cash',
-        date: expense.date,
-        description,
-        source: 'expense',
-        sourceId: expense._id,
-        reference: `EXP-${expense._id}`,
-        linkedExpenseId: expense._id,
-        category: categoryMap[expense.category] || 'other',
-        status: expense.status === 'approved' ? 'confirmed' : expense.status === 'pending' ? 'pending' : 'rejected',
-        userId: expense.userId
-      });
-      await transaction.save();
-      return transaction;
+      return CashTransaction.createFromExpense(expense, req.user?._id);
     }));
 
     await logAudit({
@@ -368,8 +318,8 @@ const reconcileTransactions = async (req, res) => {
       changes: { 
         createdForPayments: paymentTransactions.length, 
         createdForExpenses: expenseTransactions.length,
-        totalPaymentAmount: paymentTransactions.reduce((sum, t) => sum + t.amount, 0),
-        totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + t.amount, 0)
+        totalPaymentAmount: paymentTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0),
+        totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0)
       },
       req
     });
@@ -378,9 +328,51 @@ const reconcileTransactions = async (req, res) => {
       message: 'Reconciliation complete',
       createdForPayments: paymentTransactions.length,
       createdForExpenses: expenseTransactions.length,
-      totalPaymentAmount: paymentTransactions.reduce((sum, t) => sum + t.amount, 0),
-      totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + t.amount, 0)
+      totalPaymentAmount: paymentTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0),
+      totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0)
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const getChartData = async (req, res) => {
+  try {
+    const { period = 'daily', months = 6 } = req.query;
+    const now = new Date();
+    let startDate;
+    
+    if (period === 'daily') {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else {
+      startDate = new Date(now.getTime() - parseInt(months) * 30 * 24 * 60 * 60 * 1000);
+    }
+
+    const chartData = await CashTransaction.aggregate([
+      { $match: { date: { $gte: startDate }, status: { $ne: 'rejected' } } },
+      {
+        $group: {
+          _id: period === 'daily' 
+            ? { $dateToString: { format: '%Y-%m-%d', date: '$date' } }
+            : { $dateToString: { format: '%Y-%m', date: '$date' } },
+          income: { $sum: { $cond: [{ $eq: ['$type', 'in'] }, '$amount', 0] } },
+          expenses: { $sum: { $cond: [{ $eq: ['$type', 'out'] }, '$amount', 0] } },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          income: 1,
+          expenses: 1,
+          net: { $subtract: ['$income', '$expenses'] },
+          count: 1
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    res.status(200).json({ data: chartData });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -393,5 +385,6 @@ module.exports = {
   updateTransaction,
   deleteTransaction,
   getSummary,
-  reconcileTransactions
+  reconcileTransactions,
+  getChartData
 };

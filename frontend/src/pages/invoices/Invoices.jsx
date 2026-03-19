@@ -113,7 +113,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
       await paymentService.create(paymentData);
       
       setPaymentsRefreshKey(prev => prev + 1);
-      window.dispatchEvent(new Event('cashDataRefresh'));
+      window.dispatchEvent(new Event('cashUpdated'));
       setNewPayment({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
     } catch (error) {
       console.error('Error adding payment:', error);
@@ -128,7 +128,7 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
     try {
       await paymentService.delete(paymentId);
       setPaymentsRefreshKey(prev => prev + 1);
-      window.dispatchEvent(new Event('cashDataRefresh'));
+      window.dispatchEvent(new Event('cashUpdated'));
     } catch (error) {
       console.error('Error deleting payment:', error);
       alert('Erreur lors de la suppression');

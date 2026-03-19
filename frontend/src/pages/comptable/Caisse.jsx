@@ -1,28 +1,42 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
-import { Card, Button, Select, Input, DataTable, Modal, Badge, Loading } from '../../components/ui';
+import { Card, Button, Select, Input, Modal, Badge, Loading } from '../../components/ui';
 import { cashTransactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
-import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiPlus, FiDownload, FiTrendingUp, FiTrendingDown, FiDollarSign, FiArrowUpCircle, FiArrowDownCircle, FiEdit2, FiX } from 'react-icons/fi';
+import { formatCurrency, formatDateShort, formatDateFull } from '../../utils/formatters';
+import {
+  FiPlus, FiDownload, FiTrendingUp, FiTrendingDown, FiDollarSign,
+  FiArrowUpCircle, FiArrowDownCircle, FiEdit2, FiX, FiRefreshCw,
+  FiExternalLink, FiFileText, FiCreditCard, FiCalendar, FiFilter,
+  FiAlertTriangle, FiCheck, FiActivity, FiChevronRight, FiBarChart2
+} from 'react-icons/fi';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, color = 'primary' }) => {
+const EVENT_NAME = 'cashUpdated';
+
+const StatCard = ({ title, value, subtitle, icon: Icon, color = 'primary', onClick }) => {
   const colorClasses = {
     primary: 'bg-primary/10 text-primary',
     success: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
     danger: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
     warning: 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
+    info: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
   };
 
   return (
-    <Card className="p-5">
+    <Card
+      className={`p-5 transition-all duration-200 ${onClick ? 'hover:shadow-md cursor-pointer hover:scale-[1.02]' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-slate-500 font-medium mb-1">{title}</p>
-          <p className={`text-xl font-bold ${color === 'success' ? 'text-emerald-600' : color === 'danger' ? 'text-red-600' : ''}`}>{value}</p>
-          {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-slate-500 font-medium mb-1 truncate">{title}</p>
+          <p className={`text-xl font-bold ${color === 'success' ? 'text-emerald-600' : color === 'danger' ? 'text-red-600' : ''}`}>
+            {value}
+          </p>
+          {subtitle && <p className="text-xs text-slate-400 mt-1 truncate">{subtitle}</p>}
         </div>
-        <div className={`p-2.5 rounded-lg ${colorClasses[color]}`}>
+        <div className={`p-2.5 rounded-lg ${colorClasses[color]} ml-3 flex-shrink-0`}>
           {Icon && <Icon className="text-xl" />}
         </div>
       </div>
@@ -30,9 +44,157 @@ const StatCard = ({ title, value, subtitle, icon: Icon, color = 'primary' }) => 
   );
 };
 
+const TransactionDetailModal = ({ transaction, isOpen, onClose, currency }) => {
+  const navigate = useNavigate();
+  if (!transaction) return null;
+
+  const sourceConfig = {
+    invoice: { label: 'Facture', color: 'info', icon: FiFileText },
+    expense: { label: 'Dépense', color: 'warning', icon: FiCreditCard },
+    manual: { label: 'Manuel', color: 'default', icon: FiEdit2 },
+    refund: { label: 'Remboursement', color: 'danger', icon: FiTrendingDown },
+  };
+
+  const source = sourceConfig[transaction.source] || sourceConfig.manual;
+  const SourceIcon = source.icon;
+
+  const statusConfig = {
+    confirmed: { label: 'Confirmé', color: 'success' },
+    pending: { label: 'En attente', color: 'warning' },
+    rejected: { label: 'Rejeté', color: 'danger' },
+  };
+  const status = statusConfig[transaction.status] || statusConfig.confirmed;
+
+  const methodLabels = {
+    cash: 'Espèces', virement: 'Virement', cheque: 'Chèque',
+    carte: 'Carte bancaire', traite: 'Traite', autre: 'Autre'
+  };
+
+  const categoryLabels = {
+    sale: 'Vente', service: 'Service', deposit: 'Dépôt', withdrawal: 'Retrait',
+    supply: 'Fourniture', salary: 'Salaire', rent: 'Loyer', utility: 'Charge',
+    transport: 'Transport', refund: 'Remboursement', adjustment: 'Ajustement', other: 'Autre'
+  };
+
+  const handleGoToInvoice = () => {
+    const id = transaction.linkedInvoiceId?._id || transaction.linkedInvoiceId;
+    if (id) navigate(`/invoices?id=${id}`);
+  };
+
+  const handleGoToExpense = () => {
+    navigate(`/expenses?id=${transaction.linkedExpenseId?._id || transaction.linkedExpenseId}`);
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Détails de la transaction" size="md">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-full ${transaction.type === 'in' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+              {transaction.type === 'in' ? <FiArrowUpCircle className="text-2xl" /> : <FiArrowDownCircle className="text-2xl" />}
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                {transaction.type === 'in' ? '+' : '-'}{formatCurrency(transaction.amount, currency)}
+              </p>
+              <p className="text-sm text-slate-500">
+                {transaction.type === 'in' ? 'Entrée' : 'Sortie'} - {methodLabels[transaction.method] || transaction.method}
+              </p>
+            </div>
+          </div>
+          <Badge variant={transaction.type === 'in' ? 'success' : 'danger'}>
+            {transaction.type === 'in' ? 'Entrée' : 'Sortie'}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 mb-1">Source</p>
+            <div className="flex items-center gap-2">
+              <SourceIcon className="text-sm" />
+              <span className="font-medium">{source.label}</span>
+            </div>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 mb-1">Statut</p>
+            <Badge variant={status.color}>{status.label}</Badge>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 mb-1">Date</p>
+            <p className="font-medium">{formatDateFull(transaction.date)}</p>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 mb-1">Catégorie</p>
+            <p className="font-medium">{categoryLabels[transaction.category] || transaction.category}</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs text-slate-500 mb-1">Description</p>
+          <p className="font-medium text-slate-900 dark:text-white">{transaction.description}</p>
+        </div>
+
+        {transaction.reference && (
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Référence</p>
+            <p className="font-mono text-sm">{transaction.reference}</p>
+          </div>
+        )}
+
+        {transaction.linkedInvoiceId && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <p className="text-xs text-slate-500 mb-2">Facture liée</p>
+            <button
+              onClick={handleGoToInvoice}
+              className="w-full flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <FiFileText className="text-blue-600" />
+                <span className="font-medium">
+                  {transaction.linkedInvoiceId?.number || `Facture`}
+                </span>
+              </div>
+              <FiExternalLink className="text-blue-600" />
+            </button>
+          </div>
+        )}
+
+        {transaction.linkedExpenseId && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <p className="text-xs text-slate-500 mb-2">Dépense liée</p>
+            <button
+              onClick={handleGoToExpense}
+              className="w-full flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <FiCreditCard className="text-amber-600" />
+                <span className="font-medium">
+                  {transaction.linkedExpenseId?.description || `Dépense`}
+                </span>
+              </div>
+              <FiExternalLink className="text-amber-600" />
+            </button>
+          </div>
+        )}
+
+        {transaction.userId && (
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <p className="text-xs text-slate-500 mb-1">Créé par</p>
+            <p className="font-medium">{transaction.userId.name || transaction.userId.email}</p>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Button variant="secondary" onClick={onClose}>Fermer</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) => {
   const [formData, setFormData] = useState({
-    type: 'in',
+    type: 'out',
     amount: '',
     method: 'cash',
     date: new Date().toISOString().split('T')[0],
@@ -53,7 +215,7 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
       });
     } else {
       setFormData({
-        type: 'in',
+        type: 'out',
         amount: '',
         method: 'cash',
         date: new Date().toISOString().split('T')[0],
@@ -92,7 +254,7 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
       onClose();
     } catch (error) {
       console.error('Error saving transaction:', error);
-      alert('Erreur lors de l\'enregistrement');
+      alert(error.response?.data?.message || 'Erreur lors de l\'enregistrement');
     } finally {
       setLoading(false);
     }
@@ -112,32 +274,38 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
   ];
 
   const categoryOptions = [
-    { value: 'sale', label: 'Vente' },
-    { value: 'service', label: 'Service' },
-    { value: 'deposit', label: 'Dépôt' },
     { value: 'withdrawal', label: 'Retrait' },
     { value: 'supply', label: 'Fourniture' },
     { value: 'salary', label: 'Salaire' },
     { value: 'rent', label: 'Loyer' },
     { value: 'utility', label: 'Charge' },
     { value: 'transport', label: 'Transport' },
+    { value: 'deposit', label: 'Dépôt' },
+    { value: 'adjustment', label: 'Ajustement' },
+    { value: 'refund', label: 'Remboursement' },
     { value: 'other', label: 'Autre' },
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editingTransaction ? 'Modifier la transaction' : 'Nouvelle transaction'} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={editingTransaction ? 'Modifier la transaction' : 'Nouvelle sortie de caisse'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
+          <FiAlertTriangle className="mt-0.5 flex-shrink-0" />
+          <span>Les entrées sont automatiquement créées depuis les paiements de factures. Utilisez ce formulaire uniquement pour les sorties ou ajustements manuels.</span>
+        </div>
+
+        <Select
+          label="Type"
+          name="type"
+          value={formData.type}
+          onChange={handleChange}
+          required
+          disabled
+        >
+          <option value="out">Sortie</option>
+        </Select>
+
         <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Type"
-            name="type"
-            value={formData.type}
-            onChange={handleChange}
-            required
-          >
-            <option value="in">Entrée</option>
-            <option value="out">Sortie</option>
-          </Select>
           <Input
             label="Montant"
             name="amount"
@@ -159,6 +327,9 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <Select
             label="Catégorie"
             name="category"
@@ -178,6 +349,7 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
             required
           />
         </div>
+
         <Input
           label="Description"
           name="description"
@@ -186,6 +358,7 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
           placeholder="Description de la transaction..."
           required
         />
+
         <div className="flex justify-end gap-3 pt-4 border-t">
           <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
           <Button type="submit" loading={loading}>
@@ -197,25 +370,163 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
   );
 };
 
+const ReconcileModal = ({ isOpen, onClose, onSuccess }) => {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleReconcile = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await cashTransactionService.reconcile();
+      setResult(res);
+      onSuccess();
+    } catch (error) {
+      console.error('Reconciliation error:', error);
+      setResult({ error: true, message: error.response?.data?.message || 'Erreur lors de la réconciliation' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setResult(null);
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Réconcilier la caisse" size="md">
+      <div className="space-y-4">
+        <p className="text-slate-600 dark:text-slate-300">
+          Cette action synchronisera les paiements de factures et les dépenses avec la caisse. Elle créera des transactions pour tous les paiements et dépenses qui ne sont pas encore liés.
+        </p>
+
+        {result ? (
+          <div className="space-y-3">
+            {result.error ? (
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-700 dark:text-red-300">
+                <p className="font-semibold">Erreur</p>
+                <p>{result.message}</p>
+              </div>
+            ) : (
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 mb-3">
+                  <FiCheck />
+                  <span className="font-semibold">Réconciliation terminée</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500">Paiements synchronisés</p>
+                    <p className="font-semibold">{result.createdForPayments}</p>
+                    <p className="text-emerald-600">{formatCurrency(result.totalPaymentAmount || 0, 'MAD')}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Dépenses synchronisées</p>
+                    <p className="font-semibold">{result.createdForExpenses}</p>
+                    <p className="text-red-600">-{formatCurrency(result.totalExpenseAmount || 0, 'MAD')}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <FiAlertTriangle />
+              <span className="font-medium">Action irréversible</span>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+              Assurez-vous que les données sont correctes avant de procéder.
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Button variant="secondary" onClick={handleClose}>
+            {result ? 'Fermer' : 'Annuler'}
+          </Button>
+          {!result && (
+            <Button onClick={handleReconcile} loading={loading}>
+              <FiRefreshCw className="text-sm" />
+              Réconcilier
+            </Button>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+const CashFlowChart = ({ data, currency }) => {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-40 text-slate-400">
+        Pas de données disponibles
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...data.map(d => Math.max(d.income || 0, d.expenses || 0)));
+
+  return (
+    <div className="space-y-2">
+      {data.slice(-7).map((day, idx) => {
+        const incomePercent = maxValue > 0 ? ((day.income || 0) / maxValue) * 100 : 0;
+        const expensePercent = maxValue > 0 ? ((day.expenses || 0) / maxValue) * 100 : 0;
+        const dateLabel = day._id.length === 10 
+          ? new Date(day._id).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
+          : day._id;
+
+        return (
+          <div key={idx} className="flex items-center gap-3">
+            <div className="w-20 text-xs text-slate-500 truncate">{dateLabel}</div>
+            <div className="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden flex">
+              <div className="h-full bg-emerald-500 transition-all" style={{ width: `${incomePercent}%` }} />
+              <div className="h-full bg-red-500 transition-all" style={{ width: `${expensePercent}%` }} />
+            </div>
+            <div className="w-36 text-right text-xs">
+              <span className="text-emerald-600">+{formatCurrency(day.income || 0, currency)}</span>
+              <span className="text-red-600 ml-2">-{formatCurrency(day.expenses || 0, currency)}</span>
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex items-center gap-4 pt-2 text-xs text-slate-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-500 rounded" /> Entrées</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded" /> Dépenses</span>
+      </div>
+    </div>
+  );
+};
+
 const Caisse = () => {
   const { billing } = useSettings();
   const currency = billing?.currency || 'MAD';
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState({ 
-    balance: 0, 
-    totalIn: 0, 
+  const [summary, setSummary] = useState({
+    balance: 0,
+    totalIn: 0,
     totalOut: 0,
-    orphanedPayments: { count: 0, total: 0 },
-    orphanedExpenses: { count: 0, total: 0 }
+    netCashFlow: 0,
+    totalManual: 0,
+    unlinkedPayments: { count: 0, total: 0 },
+    unlinkedExpenses: { count: 0, total: 0 },
+    bySource: {},
+    recent: [],
   });
+  const [chartData, setChartData] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
 
   const [filters, setFilters] = useState({
     type: 'all',
+    source: 'all',
     method: 'all',
     startDate: '',
     endDate: '',
@@ -228,17 +539,19 @@ const Caisse = () => {
     try {
       const params = {};
       if (filters.type !== 'all') params.type = filters.type;
+      if (filters.source !== 'all') params.source = filters.source;
       if (filters.method !== 'all') params.method = filters.method;
       if (filters.startDate) params.startDate = filters.startDate;
       if (filters.endDate) params.endDate = filters.endDate;
-      params.limit = 100;
+      params.limit = 500;
 
-      const [transRes, summaryRes] = await Promise.all([
+      const [transRes, summaryRes, chartRes] = await Promise.all([
         cashTransactionService.getAll(params),
         cashTransactionService.getSummary({
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
         }),
+        cashTransactionService.getChartData({ period: 'daily' }),
       ]);
 
       setTransactions(transRes.data || []);
@@ -246,9 +559,15 @@ const Caisse = () => {
         balance: summaryRes.balance || 0,
         totalIn: summaryRes.totalIn || 0,
         totalOut: summaryRes.totalOut || 0,
-        orphanedPayments: summaryRes.orphanedPayments || { count: 0, total: 0 },
-        orphanedExpenses: summaryRes.orphanedExpenses || { count: 0, total: 0 },
+        netCashFlow: summaryRes.netCashFlow || 0,
+        totalManual: summaryRes.totalManual || 0,
+        unlinkedPayments: summaryRes.unlinkedPayments || { count: 0, total: 0 },
+        unlinkedExpenses: summaryRes.unlinkedExpenses || { count: 0, total: 0 },
+        bySource: summaryRes.bySource || {},
+        recent: summaryRes.recent || [],
       });
+      setChartData(chartRes.data || []);
+
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -261,11 +580,11 @@ const Caisse = () => {
   }, [fetchData]);
 
   useEffect(() => {
-    const handleCashDataRefresh = () => {
+    const handleCashUpdated = () => {
       setRefreshKey(prev => prev + 1);
     };
-    window.addEventListener('cashDataRefresh', handleCashDataRefresh);
-    return () => window.removeEventListener('cashDataRefresh', handleCashDataRefresh);
+    window.addEventListener(EVENT_NAME, handleCashUpdated);
+    return () => window.removeEventListener(EVENT_NAME, handleCashUpdated);
   }, []);
 
   const handleAddTransaction = () => {
@@ -274,8 +593,18 @@ const Caisse = () => {
   };
 
   const handleEditTransaction = (transaction) => {
-    setEditingTransaction(transaction);
-    setShowModal(true);
+    if (transaction.source !== 'manual') {
+      setSelectedTransaction(transaction);
+      setShowDetailModal(true);
+    } else {
+      setEditingTransaction(transaction);
+      setShowModal(true);
+    }
+  };
+
+  const handleViewTransaction = (transaction) => {
+    setSelectedTransaction(transaction);
+    setShowDetailModal(true);
   };
 
   const handleDeleteTransaction = async (id) => {
@@ -283,7 +612,7 @@ const Caisse = () => {
     try {
       await cashTransactionService.delete(id);
       setRefreshKey(prev => prev + 1);
-      window.dispatchEvent(new Event('cashDataRefresh'));
+      window.dispatchEvent(new Event(EVENT_NAME));
     } catch (error) {
       console.error('Error deleting transaction:', error);
       alert(error.response?.data?.message || 'Erreur lors de la suppression');
@@ -292,17 +621,43 @@ const Caisse = () => {
 
   const handleSuccess = () => {
     setRefreshKey(prev => prev + 1);
+    window.dispatchEvent(new Event(EVENT_NAME));
   };
 
+  const handleReconcileSuccess = () => {
+    setRefreshKey(prev => prev + 1);
+    window.dispatchEvent(new Event(EVENT_NAME));
+  };
+
+  const groupedTransactions = useMemo(() => {
+    const groups = {};
+    transactions.forEach(t => {
+      const dateKey = new Date(t.date).toDateString();
+      if (!groups[dateKey]) {
+        groups[dateKey] = {
+          date: new Date(t.date),
+          transactions: [],
+          totals: { in: 0, out: 0 }
+        };
+      }
+      groups[dateKey].transactions.push(t);
+      if (t.type === 'in') groups[dateKey].totals.in += t.amount;
+      else groups[dateKey].totals.out += t.amount;
+    });
+    return Object.values(groups).sort((a, b) => b.date - a.date);
+  }, [transactions]);
+
   const handleExportCSV = () => {
-    const headers = ['Date', 'Type', 'Méthode', 'Catégorie', 'Description', 'Montant'];
+    const headers = ['Date', 'Type', 'Source', 'Description', 'Méthode', 'Catégorie', 'Montant', 'Statut'];
     const rows = transactions.map(t => [
-      formatDateShort(t.date),
+      formatDateFull(t.date),
       t.type === 'in' ? 'Entrée' : 'Sortie',
+      t.source,
+      t.description,
       t.method,
       t.category,
-      t.description,
       t.amount,
+      t.status,
     ]);
 
     const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -319,105 +674,54 @@ const Caisse = () => {
 
   const getMethodLabel = (method) => {
     const labels = {
-      cash: 'Espèces',
-      virement: 'Virement',
-      cheque: 'Chèque',
-      carte: 'Carte',
-      traite: 'Traite',
-      autre: 'Autre',
+      cash: 'Espèces', virement: 'Virement', cheque: 'Chèque',
+      carte: 'Carte', traite: 'Traite', autre: 'Autre'
     };
     return labels[method] || method;
   };
 
-  const columns = [
-    {
-      key: 'date',
-      header: 'Date',
-      render: (row) => <span className="text-sm">{formatDateShort(row.date)}</span>,
-    },
-    {
-      key: 'type',
-      header: 'Type',
-      render: (row) => (
-        <Badge variant={row.type === 'in' ? 'success' : 'danger'}>
-          <span className="flex items-center gap-1">
-            {row.type === 'in' ? <FiArrowUpCircle className="text-xs" /> : <FiArrowDownCircle className="text-xs" />}
-            {row.type === 'in' ? 'Entrée' : 'Sortie'}
-          </span>
-        </Badge>
-      ),
-    },
-    {
-      key: 'source',
-      header: 'Source',
-      render: (row) => (
-        <Badge variant={row.source === 'manual' ? 'default' : row.source === 'invoice' ? 'info' : 'warning'}>
-          {row.source === 'invoice' ? 'Facture' : row.source === 'expense' ? 'Dépense' : row.source === 'refund' ? 'Remboursement' : 'Manuel'}
-        </Badge>
-      ),
-    },
-    {
-      key: 'description',
-      header: 'Description',
-      render: (row) => <span className="text-sm max-w-xs truncate">{row.description}</span>,
-    },
-    {
-      key: 'method',
-      header: 'Méthode',
-      render: (row) => <span className="text-sm">{getMethodLabel(row.method)}</span>,
-    },
-    {
-      key: 'amount',
-      header: 'Montant',
-      render: (row) => (
-        <span className={`font-semibold ${row.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
-          {row.type === 'in' ? '+' : '-'}{formatCurrency(row.amount, currency)}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      width: '100px',
-      render: (row) => (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleEditTransaction(row); }}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="Modifier"
-          >
-            <FiEdit2 className="text-xs" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(row._id); }}
-            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500"
-            title="Supprimer"
-          >
-            <FiX className="text-xs" />
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const getSourceBadge = (source) => {
+    const variants = {
+      invoice: 'info',
+      expense: 'warning',
+      manual: 'default',
+      refund: 'danger',
+    };
+    const labels = {
+      invoice: 'Facture',
+      expense: 'Dépense',
+      manual: 'Manuel',
+      refund: 'Remboursement',
+    };
+    return <Badge variant={variants[source] || 'default'}>{labels[source] || source}</Badge>;
+  };
+
+  const hasUnlinked = summary.unlinkedPayments.count > 0 || summary.unlinkedExpenses.count > 0;
+  const totalUnlinked = (summary.unlinkedPayments.total || 0) + (summary.unlinkedExpenses.total || 0);
 
   return (
     <PageLayout
       title="Caisse"
+      subtitle={hasUnlinked ? `${summary.unlinkedPayments.count + summary.unlinkedExpenses.count} transactions non synchronisées` : 'Toutes synchronisées'}
       actions={
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setShowReconcileModal(true)} title="Réconcilier">
+            <FiRefreshCw className="text-sm" />
+            Réconcilier
+          </Button>
           <Button variant="secondary" onClick={handleExportCSV}>
             <FiDownload className="text-sm" />
-            Export CSV
+            Export
           </Button>
           <Button onClick={handleAddTransaction}>
             <FiPlus className="text-sm" />
-            Transaction
+            Sortie
           </Button>
         </div>
       }
     >
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           <StatCard
             title="Solde Caisse"
             value={formatCurrency(summary.balance, currency)}
@@ -428,98 +732,212 @@ const Caisse = () => {
           <StatCard
             title="Revenus Reçus"
             value={formatCurrency(summary.totalIn, currency)}
-            subtitle={`${summary.orphanedPayments.count > 0 ? `${summary.orphanedPayments.count} paiements non synchronisés` : 'Tous synchronisés'}`}
+            subtitle={`${summary.bySource?.invoice?.count || 0} transactions`}
             icon={FiTrendingUp}
-            color={summary.orphanedPayments.count > 0 ? 'warning' : 'success'}
+            color={hasUnlinked ? 'warning' : 'success'}
           />
           <StatCard
             title="Dépenses Payées"
             value={formatCurrency(summary.totalOut, currency)}
-            subtitle={`${summary.orphanedExpenses.count > 0 ? `${summary.orphanedExpenses.count} dépenses non synchronisées` : 'Toutes synchronisées'}`}
+            subtitle={`${summary.bySource?.expense?.count || 0} transactions`}
             icon={FiTrendingDown}
-            color={summary.orphanedExpenses.count > 0 ? 'warning' : 'danger'}
+            color="danger"
           />
           <StatCard
             title="Flux Net"
-            value={formatCurrency(summary.totalIn - summary.totalOut, currency)}
-            subtitle="Revenus - Dépenses"
-            icon={summary.totalIn >= summary.totalOut ? FiTrendingUp : FiTrendingDown}
-            color={summary.totalIn >= summary.totalOut ? 'success' : 'danger'}
+            value={formatCurrency(summary.netCashFlow, currency)}
+            subtitle={summary.netCashFlow >= 0 ? 'Bénéfice net' : 'Perte nette'}
+            icon={summary.netCashFlow >= 0 ? FiTrendingUp : FiTrendingDown}
+            color={summary.netCashFlow >= 0 ? 'success' : 'danger'}
           />
           <StatCard
-            title="Paiements Manquants"
-            value={formatCurrency(summary.orphanedPayments.total, currency)}
-            subtitle={`${summary.orphanedPayments.count} paiements non liés`}
-            icon={FiTrendingUp}
-            color={summary.orphanedPayments.count > 0 ? 'warning' : 'primary'}
+            title="Non Synchronisé"
+            value={formatCurrency(totalUnlinked, currency)}
+            subtitle={`${(summary.unlinkedPayments.count || 0) + (summary.unlinkedExpenses.count || 0)} transactions`}
+            icon={hasUnlinked ? FiAlertTriangle : FiCheck}
+            color={hasUnlinked ? 'warning' : 'success'}
+            onClick={() => hasUnlinked && setShowReconcileModal(true)}
           />
           <StatCard
-            title="Dépenses Manquantes"
-            value={formatCurrency(summary.orphanedExpenses.total, currency)}
-            subtitle={`${summary.orphanedExpenses.count} dépenses non liées`}
-            icon={FiTrendingDown}
-            color={summary.orphanedExpenses.count > 0 ? 'warning' : 'primary'}
+            title="Transactions"
+            value={transactions.length}
+            subtitle={`${groupedTransactions.length} jours`}
+            icon={FiActivity}
+            color="info"
           />
         </div>
 
-        <Card className="p-4">
-          <div className="flex flex-wrap gap-4 items-end">
-            <Select
-              label="Type"
-              value={filters.type}
-              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="w-36"
-            >
-              <option value="all">Tous</option>
-              <option value="in">Entrées</option>
-              <option value="out">Sorties</option>
-            </Select>
-            <Select
-              label="Méthode"
-              value={filters.method}
-              onChange={(e) => setFilters({ ...filters, method: e.target.value })}
-              className="w-36"
-            >
-              <option value="all">Toutes</option>
-              <option value="cash">Espèces</option>
-              <option value="virement">Virement</option>
-              <option value="cheque">Chèque</option>
-              <option value="carte">Carte</option>
-              <option value="traite">Traite</option>
-            </Select>
-            <Input
-              label="Date début"
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="w-40"
-            />
-            <Input
-              label="Date fin"
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="w-40"
-            />
-            <Button
-              variant="secondary"
-              onClick={() => setFilters({ type: 'all', method: 'all', startDate: '', endDate: '' })}
-            >
-              Réinitialiser
-            </Button>
-          </div>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="p-4 lg:col-span-2">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+              <FiFilter className="text-slate-400" />
+              Filtres
+            </h3>
+            <div className="flex flex-wrap gap-4 items-end">
+              <Select
+                label="Type"
+                value={filters.type}
+                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                className="w-32"
+              >
+                <option value="all">Tous</option>
+                <option value="in">Entrées</option>
+                <option value="out">Sorties</option>
+              </Select>
+              <Select
+                label="Source"
+                value={filters.source}
+                onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+                className="w-36"
+              >
+                <option value="all">Toutes</option>
+                <option value="invoice">Factures</option>
+                <option value="expense">Dépenses</option>
+                <option value="manual">Manuelles</option>
+              </Select>
+              <Select
+                label="Méthode"
+                value={filters.method}
+                onChange={(e) => setFilters({ ...filters, method: e.target.value })}
+                className="w-36"
+              >
+                <option value="all">Toutes</option>
+                <option value="cash">Espèces</option>
+                <option value="virement">Virement</option>
+                <option value="cheque">Chèque</option>
+                <option value="carte">Carte</option>
+                <option value="traite">Traite</option>
+              </Select>
+              <Input
+                label="Date début"
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="w-36"
+              />
+              <Input
+                label="Date fin"
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="w-36"
+              />
+              <Button
+                variant="secondary"
+                onClick={() => setFilters({ type: 'all', source: 'all', method: 'all', startDate: '', endDate: '' })}
+                size="sm"
+              >
+                Réinitialiser
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+              <FiBarChart2 className="text-slate-400" />
+              7 derniers jours
+            </h3>
+            <CashFlowChart data={chartData} currency={currency} />
+          </Card>
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-64"><Loading size="lg" /></div>
+        ) : groupedTransactions.length === 0 ? (
+          <Card className="p-8 text-center">
+            <FiDollarSign className="mx-auto text-4xl text-slate-300 mb-3" />
+            <p className="text-slate-500">Aucune transaction trouvée</p>
+          </Card>
         ) : (
-          <DataTable
-            columns={columns}
-            data={transactions}
-            emptyMessage="Aucune transaction trouvée"
-            onRowClick={handleEditTransaction}
-            rowClassName="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
-          />
+          <div className="space-y-4">
+            {groupedTransactions.map((group, groupIdx) => (
+              <Card key={groupIdx} className="overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <FiCalendar className="text-slate-400" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        {group.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <span className="text-sm text-slate-400">
+                      {group.transactions.length} transaction{group.transactions.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-emerald-600 font-medium">
+                      +{formatCurrency(group.totals.in, currency)}
+                    </span>
+                    <span className="text-red-600 font-medium">
+                      -{formatCurrency(group.totals.out, currency)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {group.transactions.map((transaction) => (
+                    <div
+                      key={transaction._id}
+                      className="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group flex items-center gap-4"
+                      onClick={() => handleViewTransaction(transaction)}
+                    >
+                      <div className={`p-2 rounded-lg ${transaction.type === 'in' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                        {transaction.type === 'in' ? <FiArrowUpCircle /> : <FiArrowDownCircle />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="font-medium text-slate-900 dark:text-white truncate">
+                            {transaction.description}
+                          </span>
+                          {getSourceBadge(transaction.source)}
+                          {transaction.status === 'pending' && (
+                            <Badge variant="warning" className="text-xs">En attente</Badge>
+                          )}
+                          {(transaction.source === 'invoice' || transaction.source === 'expense') && (
+                            <span className="text-emerald-500"><FiCheck className="text-xs" /></span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                          <span>{getMethodLabel(transaction.method)}</span>
+                          <span className="capitalize">{transaction.category}</span>
+                          {transaction.reference && <span className="font-mono">{transaction.reference}</span>}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className={`font-semibold ${transaction.type === 'in' ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {transaction.type === 'in' ? '+' : '-'}{formatCurrency(transaction.amount, currency)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {transaction.source === 'manual' && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleEditTransaction(transaction); }}
+                              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
+                              title="Modifier"
+                            >
+                              <FiEdit2 className="text-xs" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTransaction(transaction._id); }}
+                              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded text-red-500"
+                              title="Supprimer"
+                            >
+                              <FiX className="text-xs" />
+                            </button>
+                          </>
+                        )}
+                        <FiChevronRight className="text-slate-400 text-xs" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
 
@@ -528,6 +946,19 @@ const Caisse = () => {
         onClose={() => setShowModal(false)}
         onSuccess={handleSuccess}
         editingTransaction={editingTransaction}
+      />
+
+      <TransactionDetailModal
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        transaction={selectedTransaction}
+        currency={currency}
+      />
+
+      <ReconcileModal
+        isOpen={showReconcileModal}
+        onClose={() => setShowReconcileModal(false)}
+        onSuccess={handleReconcileSuccess}
       />
     </PageLayout>
   );

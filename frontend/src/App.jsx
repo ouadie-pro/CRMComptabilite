@@ -6,6 +6,7 @@ import Login from './pages/auth/Login';
 import Logout from './pages/auth/Logout';
 import Dashboard from './pages/dashboard/Dashboard';
 import ComptableDashboard from './pages/comptable/ComptableDashboard';
+import Caisse from './pages/comptable/Caisse';
 import Clients from './pages/clients/Clients';
 import ClientDetail from './pages/clients/ClientDetail';
 import Invoices from './pages/invoices/Invoices';
@@ -15,7 +16,6 @@ import Reports from './pages/reports/Reports';
 import Audit from './pages/reports/Audit';
 import Settings from './pages/settings/Settings';
 import Interactions from './pages/interactions/Interactions';
-import Caisse from './pages/comptable/Caisse';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -96,14 +96,14 @@ const AppRoutes = () => {
       />
 
       <Route
-        path="/caisse"
+        path="/comptable/caisse"
         element={
           <ProtectedRoute>
             <Caisse />
           </ProtectedRoute>
         }
       />
-      
+
       <Route
         path="/clients"
         element={
