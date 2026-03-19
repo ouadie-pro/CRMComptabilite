@@ -4,7 +4,6 @@ import { PageLayout } from '../../components/layout';
 import { Card, Badge, Loading, Button } from '../../components/ui';
 import { invoiceService, expenseService, clientService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
-import { useAuth } from '../../context/AuthContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { FiTrendingUp, FiTrendingDown, FiDollarSign, FiCheckCircle, FiAlertCircle, FiShoppingCart, FiMinusCircle, FiFileText, FiCreditCard } from 'react-icons/fi';
 
@@ -54,7 +53,6 @@ const TabButton = ({ active, onClick, icon: Icon, label }) => (
 
 const ComptableDashboard = () => {
   const { billing } = useSettings();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const currency = billing?.currency || 'MAD';
 
@@ -72,8 +70,6 @@ const ComptableDashboard = () => {
   });
   const [recentInvoices, setRecentInvoices] = useState([]);
   const [recentExpenses, setRecentExpenses] = useState([]);
-
-  const isComptable = user?.role === 'comptable';
 
   const fetchDashboardData = async () => {
     try {

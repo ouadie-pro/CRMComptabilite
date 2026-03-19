@@ -303,11 +303,56 @@ const reconcileTransactions = async (req, res) => {
 
     const paymentTransactions = await Promise.all(missingPayments.map(async (payment) => {
       const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
-      return CashTransaction.createFromPayment(payment, invoice, req.user?._id);
+      
+      const methodMap = { 'cache': 'cash', 'trait': 'traite', 'virement': 'virement', 'cheque': 'cheque', 'carte': 'carte' };
+      const method = methodMap[payment.method] || 'cash';
+      
+      const description = invoice
+        ? `Paiement facture #${invoice.number} - ${invoice.clientId?.companyName || 'Client'}`
+        : `Paiement facture #${payment.invoiceId}`;
+      
+      const transaction = new CashTransaction({
+        type: 'in',
+        amount: payment.amount,
+        method,
+        date: payment.paidAt || new Date(),
+        description,
+        source: 'invoice',
+        category: 'sale',
+        sourceId: payment._id,
+        reference: `PAY-${payment._id}`,
+        linkedInvoiceId: payment.invoiceId,
+        userId: req.user?._id || null,
+      });
+      await transaction.save();
+      return transaction;
     }));
 
+    const categoryMap = {
+      'salaire': 'salary', 'loyer': 'rent', 'services': 'service',
+      'fournitures': 'supply', 'transport': 'transport', 'autre': 'other'
+    };
+
     const expenseTransactions = await Promise.all(missingExpenses.map(async (expense) => {
-      return CashTransaction.createFromExpense(expense, req.user?._id);
+      const description = expense.vendor
+        ? `${expense.description} - ${expense.vendor}`
+        : expense.description;
+      
+      const transaction = new CashTransaction({
+        type: 'out',
+        amount: expense.amount,
+        method: expense.paymentMethod || 'cash',
+        date: expense.date || new Date(),
+        description,
+        source: 'expense',
+        category: categoryMap[expense.category] || 'other',
+        sourceId: expense._id,
+        reference: `EXP-${expense._id}`,
+        linkedExpenseId: expense._id,
+        userId: req.user?._id || null,
+      });
+      await transaction.save();
+      return transaction;
     }));
 
     await logAudit({

@@ -105,7 +105,9 @@ export const productService = {
 
 export const paymentService = {
   getAll: async (params = {}) => {
+    console.log('[paymentService] GET /payments with params:', params);
     const response = await api.get('/payments', { params });
+    console.log('[paymentService] Response:', response.data);
     return response.data;
   },
 

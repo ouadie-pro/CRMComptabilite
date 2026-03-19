@@ -72,15 +72,22 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
 
   useEffect(() => {
     if (invoice?._id) {
+      console.log('[InvoiceForm] useEffect - fetching payments for invoice:', invoice._id);
       setLoadingPayments(true);
-      paymentService.getAll({ invoiceId: invoice._id })
+      const params = { invoiceId: invoice._id };
+      console.log('[InvoiceForm] Calling API with params:', params);
+      paymentService.getAll(params)
         .then(response => {
+          console.log('[InvoiceForm] getAllPayments raw response:', response);
+          console.log('[InvoiceForm] Response type:', typeof response, Array.isArray(response));
           const paymentsData = Array.isArray(response) ? response : response.data || [];
+          console.log('[InvoiceForm] Setting payments:', paymentsData.length);
           setPayments(paymentsData);
         })
         .catch(err => console.error('Error fetching payments:', err))
         .finally(() => setLoadingPayments(false));
     } else {
+      console.log('[InvoiceForm] No invoice._id, clearing payments');
       setPayments([]);
     }
   }, [invoice?._id, invoice?.updatedAt, paymentsRefreshKey]);
@@ -110,16 +117,21 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
         method: newPayment.method,
         paidAt: newPayment.paidAt,
       };
-      await paymentService.create(paymentData);
+      console.log('[InvoiceForm] Creating payment with data:', paymentData);
+      
+      const response = await paymentService.create(paymentData);
+      console.log('[InvoiceForm] Payment created successfully:', response);
       
       const updatedInvoice = await invoiceService.getById(invoice._id);
+      console.log('[InvoiceForm] Updated invoice:', updatedInvoice);
       if (onInvoiceUpdate) onInvoiceUpdate(updatedInvoice);
       setPaymentsRefreshKey(prev => prev + 1);
       window.dispatchEvent(new Event('cashUpdated'));
       setNewPayment({ amount: '', method: 'virement', paidAt: new Date().toISOString().split('T')[0] });
     } catch (error) {
-      console.error('Error adding payment:', error);
-      alert('Erreur lors de l\'ajout du paiement');
+      console.error('[InvoiceForm] Error adding payment:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Erreur lors de l\'ajout du paiement';
+      alert(errorMessage);
     } finally {
       setAddingPayment(false);
     }
@@ -384,123 +396,91 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
             Paiements
           </h3>
           
-          {/* Payment Summary */}
-          <div className="grid grid-cols-4 gap-4 mb-4">
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-              <div className="text-xs text-slate-500">Total facture</div>
-              <div className="text-lg font-bold text-slate-900 dark:text-white">
-                {formatCurrency(invoice.totalTTC || totals.total, currency)}
-              </div>
-            </div>
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-              <div className="text-xs text-slate-500">Total payé</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                {formatCurrency(invoice.totalPaid ?? calculateTotalPaid(), currency)}
-              </div>
-            </div>
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-              <div className="text-xs text-slate-500">Reste à payer</div>
-              <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
-                {formatCurrency(invoice.remainingAmount ?? (invoice.totalTTC - calculateTotalPaid()), currency)}
-              </div>
-            </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-              <div className="text-xs text-slate-500">Statut</div>
-              <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 capitalize">
-                {invoice.status === 'partiellement payé' ? 'Partiellement payé' : 
-                 invoice.status === 'en_retard' ? 'En retard' : 
-                 invoice.status || 'brouillon'}
-              </div>
-            </div>
-          </div>
+          {/* Payment Summary - Live calculated values */}
+          {(() => {
+            const liveTotalPaid = calculateTotalPaid();
+            const totalTTC = invoice.totalTTC || totals.total;
+            const remaining = totalTTC - liveTotalPaid;
+            const liveStatus = liveTotalPaid >= totalTTC 
+              ? 'payé' 
+              : liveTotalPaid > 0 
+                ? 'partiellement payé' 
+                : invoice.status;
+            
+            return (
+              <>
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+                    <div className="text-xs text-slate-500">Total facture</div>
+                    <div className="text-lg font-bold text-slate-900 dark:text-white">
+                      {formatCurrency(totalTTC, currency)}
+                    </div>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                    <div className="text-xs text-slate-500">Total payé</div>
+                    <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                      {formatCurrency(liveTotalPaid, currency)}
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
+                    <div className="text-xs text-slate-500">Reste à payer</div>
+                    <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                      {formatCurrency(Math.max(0, remaining), currency)}
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                    <div className="text-xs text-slate-500">Statut</div>
+                    <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 capitalize">
+                      {liveStatus === 'partiellement payé' ? 'Partiellement payé' : 
+                       liveStatus === 'en_retard' ? 'En retard' : 
+                       liveStatus || 'brouillon'}
+                    </div>
+                  </div>
+                </div>
 
-          {/* Add Payment Form */}
-          <form onSubmit={handleAddPayment} className="flex items-end gap-3 mb-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-            <div className="flex-1">
-              <Input
-                label="Montant"
-                type="number"
-                step="0.01"
-                min="0"
-                value={newPayment.amount}
-                onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-            <div className="flex-1">
-              <Select
-                label="Méthode"
-                value={newPayment.method}
-                onChange={(e) => setNewPayment({ ...newPayment, method: e.target.value })}
-              >
-                <option value="virement">Virement</option>
-                <option value="cache">Espèces</option>
-                <option value="cheque">Chèque</option>
-                <option value="trait">Traite</option>
-              </Select>
-            </div>
-            <div className="flex-1">
-              <Input
-                label="Date"
-                type="date"
-                value={newPayment.paidAt}
-                onChange={(e) => setNewPayment({ ...newPayment, paidAt: e.target.value })}
-              />
-            </div>
-            <div>
-              <Button type="submit" loading={addingPayment}>
-                <FiPlus className="text-sm" />
-                Ajouter
-              </Button>
-            </div>
-          </form>
-
-          {/* Payments List */}
-          {loadingPayments ? (
-            <div className="text-center py-4 text-slate-500">Chargement...</div>
-          ) : payments.length > 0 ? (
-            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800">
-                  <tr>
-                    <th className="text-left px-4 py-2 text-slate-500">Date</th>
-                    <th className="text-left px-4 py-2 text-slate-500">Méthode</th>
-                    <th className="text-right px-4 py-2 text-slate-500">Montant</th>
-                    <th className="w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {payments.map((payment) => (
-                    <tr key={payment._id}>
-                      <td className="px-4 py-2">{formatDateShort(payment.paidAt)}</td>
-                      <td className="px-4 py-2 capitalize">
-                        {payment.method === 'virement' && 'Virement'}
-                        {payment.method === 'cache' && 'Espèces'}
-                        {payment.method === 'cheque' && 'Chèque'}
-                        {payment.method === 'trait' && 'Traite'}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium text-green-600 dark:text-green-400">
-                        {formatCurrency(payment.amount, currency)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePayment(payment._id)}
-                          className="text-slate-400 hover:text-red-500"
-                        >
-                          <FiTrash2 className="text-sm" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-slate-500 text-sm">
-              Aucun paiement enregistré
-            </div>
-          )}
+                {/* Add Payment Form */}
+                <div onSubmit={handleAddPayment} className="flex items-end gap-3 mb-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <div className="flex-1">
+                    <Input
+                      label="Montant"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newPayment.amount}
+                      onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Select
+                      label="Méthode"
+                      value={newPayment.method}
+                      onChange={(e) => setNewPayment({ ...newPayment, method: e.target.value })}
+                    >
+                      <option value="virement">Virement</option>
+                      <option value="cache">Espèces</option>
+                      <option value="cheque">Chèque</option>
+                      <option value="trait">Traite</option>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      label="Date"
+                      type="date"
+                      value={newPayment.paidAt}
+                      onChange={(e) => setNewPayment({ ...newPayment, paidAt: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Button type="button" onClick={handleAddPayment} loading={addingPayment}>
+                      <FiPlus className="text-sm" />
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 

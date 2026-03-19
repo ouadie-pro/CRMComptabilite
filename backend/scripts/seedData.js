@@ -7,6 +7,7 @@ const Invoice = require('../models/InvoiceSchema');
 const User = require('../models/userSchema');
 const PaymentGateway = require('../models/PaymentGatewaySchema');
 const Payment = require('../models/PaymentSchema');
+const CashTransaction = require('../models/CashTransactionSchema');
 const Reminder = require('../models/ReminderSchema');
 const Interaction = require('../models/InteractionSchema');
 
@@ -151,7 +152,7 @@ async function seedData() {
     const paymentCount = await Payment.countDocuments();
     if (paymentCount === 0 && invoices.length > 0 && clients.length > 0) {
       const payments = [];
-      const methods = ['virement', 'carte', 'cheque', 'paypal'];
+      const methods = ['virement', 'cache', 'cheque', 'trait', 'carte', 'paypal'];
 
       for (let i = 0; i < 5; i++) {
         const daysAgo = Math.floor(Math.random() * 30);
@@ -166,6 +167,14 @@ async function seedData() {
       }
       const insertedPayments = await Payment.insertMany(payments);
       console.log('✓ Seeded 5 Payments');
+
+      // Create CashTransactions for seeded payments
+      const firstUser = users.length > 0 ? users[0]._id : null;
+      for (const payment of insertedPayments) {
+        const invoice = invoices.find(inv => inv._id.toString() === payment.invoiceId.toString());
+        await CashTransaction.createFromPayment(payment, invoice, firstUser);
+      }
+      console.log('✓ Created CashTransactions for seeded payments');
     } else {
       console.log('✓ Payments already exist or no data to link, skipping');
     }

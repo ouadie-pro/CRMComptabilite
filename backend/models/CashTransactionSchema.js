@@ -58,7 +58,8 @@ const cashTransactionSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false,
+    default: null
   },
   status: {
     type: String,
@@ -82,31 +83,46 @@ cashTransactionSchema.statics.findBySourceId = function(sourceId) {
 };
 
 cashTransactionSchema.statics.createFromPayment = async function(payment, invoice, userId) {
+  const methodMap = {
+    'cache': 'cash', 'trait': 'traite', 'virement': 'virement',
+    'cheque': 'cheque', 'carte': 'carte'
+  };
+  const method = methodMap[payment.method] || 'cash';
+  
+  const description = invoice
+    ? `Paiement facture #${invoice.number || 'N/A'} - ${invoice.clientId?.companyName || 'Client'}`
+    : `Paiement facture #${payment.invoiceId}`;
+
   const existing = await this.findOne({ sourceId: payment._id });
   if (existing) {
     existing.amount = payment.amount;
-    existing.method = this.schema.methods.mapPaymentMethod(payment.method);
+    existing.method = method;
     existing.date = payment.paidAt || new Date();
-    existing.description = `Paiement facture #${invoice?.number || 'N/A'} - ${invoice?.clientId?.companyName || 'Client'}`;
+    existing.description = description;
     existing.status = 'confirmed';
     await existing.save();
     return existing;
   }
 
-  const transaction = new this({
+  const transactionData = {
     type: 'in',
     amount: payment.amount,
-    method: this.schema.methods.mapPaymentMethod(payment.method),
+    method,
     date: payment.paidAt || new Date(),
-    description: `Paiement facture #${invoice?.number || payment.invoiceId} - ${invoice?.clientId?.companyName || 'Client'}`,
+    description,
     source: 'invoice',
     category: 'sale',
     sourceId: payment._id,
     reference: `PAY-${payment._id}`,
     linkedInvoiceId: payment.invoiceId,
-    userId: userId || payment.clientId,
     status: 'confirmed'
-  });
+  };
+  
+  if (userId) {
+    transactionData.userId = userId;
+  }
+
+  const transaction = new this(transactionData);
   await transaction.save();
   return transaction;
 };
@@ -134,34 +150,31 @@ cashTransactionSchema.statics.createFromExpense = async function(expense, userId
     return existing;
   }
 
-  const transaction = new this({
+  const transactionData = {
     type: 'out',
     amount: expense.amount,
     method: expense.paymentMethod || 'cash',
     date: expense.date || new Date(),
-    description: description,
+    description,
     source: 'expense',
     category: categoryMap[expense.category] || 'other',
     sourceId: expense._id,
     reference: `EXP-${expense._id}`,
     linkedExpenseId: expense._id,
-    userId: userId || expense.userId,
     status: expense.status === 'approved' ? 'confirmed' : expense.status === 'pending' ? 'pending' : 'rejected'
-  });
+  };
+  
+  if (userId) {
+    transactionData.userId = userId;
+  }
+
+  const transaction = new this(transactionData);
   await transaction.save();
   return transaction;
 };
 
 cashTransactionSchema.statics.deleteBySourceId = async function(sourceId) {
   return this.findOneAndDelete({ sourceId });
-};
-
-cashTransactionSchema.methods.mapPaymentMethod = function(method) {
-  const methodMap = {
-    'cache': 'cash', 'trait': 'traite', 'virement': 'virement',
-    'cheque': 'cheque', 'carte': 'carte'
-  };
-  return methodMap[method] || 'cash';
 };
 
 module.exports = mongoose.model("CashTransaction", cashTransactionSchema);
