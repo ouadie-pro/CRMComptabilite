@@ -2,12 +2,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export const formatCurrencyPDF = (amount, currency = 'MAD') => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency,
+  const formatted = new Intl.NumberFormat('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount || 0);
+  return `${formatted} ${currency}`;
 };
 
 export const formatDatePDF = (date) => {
@@ -70,7 +69,7 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
   const pageWidth = 210;
   const pageHeight = 297;
   const margin = 15;
-  const contentWidth = pageWidth - margin * 2;
+  const contentWidth = pageWidth - margin * 2; // 180mm
   
   // Colors
   const primaryColor = [44, 62, 80];
@@ -80,18 +79,18 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
   
   let currentY = margin;
 
-  // Header
+  // ==================== HEADER ====================
   doc.setFillColor(...primaryColor);
   doc.rect(0, 0, pageWidth, 35, 'F');
   
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.text(companyName, margin, 15);
+  doc.setFontSize(18);
+  doc.text(companyName, margin, 12);
   
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  let headerY = 22;
+  doc.setFontSize(8);
+  let headerY = 18;
   if (companyAddress) {
     doc.text(companyAddress, margin, headerY);
     headerY += 5;
@@ -110,85 +109,85 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     }
   }
 
-  currentY = 42;
+  currentY = 40;
 
-  // Invoice Title
+  // ==================== INVOICE TITLE ====================
   doc.setTextColor(...primaryColor);
-  doc.setFontSize(24);
+  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('FACTURE', pageWidth - margin, 15, { align: 'right' });
+  doc.text('FACTURE', pageWidth - margin, 12, { align: 'right' });
   
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text(invoice.number || '', pageWidth - margin, 23, { align: 'right' });
+  doc.text(invoice.number || '', pageWidth - margin, 20, { align: 'right' });
 
-  // Client Info Box
-  const clientBoxWidth = 95;
-  const clientBoxHeight = 38;
+  // ==================== CLIENT & DETAILS BOXES ====================
+  const clientBoxWidth = 90;
+  const clientBoxHeight = 35;
   
+  // Client Box
   doc.setFillColor(...lightGray);
   doc.setDrawColor(...borderColor);
   doc.roundedRect(margin, currentY, clientBoxWidth, clientBoxHeight, 2, 2, 'FD');
   
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...secondaryColor);
-  doc.text('CLIENT', margin + 5, currentY + 7);
+  doc.text('CLIENT', margin + 4, currentY + 6);
   
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...primaryColor);
   
-  const clientName = truncateText(invoice.clientId?.companyName || 'Client', 35);
-  doc.text(clientName, margin + 5, currentY + 14);
+  const clientName = truncateText(invoice.clientId?.companyName || 'Client', 30);
+  doc.text(clientName, margin + 4, currentY + 13);
   
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   
   if (invoice.clientId?.address) {
-    const clientAddr = truncateText(invoice.clientId.address, 40);
-    doc.text(clientAddr, margin + 5, currentY + 20);
+    const clientAddr = truncateText(invoice.clientId.address, 38);
+    doc.text(clientAddr, margin + 4, currentY + 20);
   }
   if (invoice.clientId?.email) {
-    const clientEmail = truncateText(invoice.clientId.email, 40);
-    doc.text(clientEmail, margin + 5, currentY + 26);
+    const clientEmail = truncateText(invoice.clientId.email, 38);
+    doc.text(clientEmail, margin + 4, currentY + 26);
   }
   if (invoice.clientId?.ice) {
-    doc.text(`ICE: ${invoice.clientId.ice}`, margin + 5, currentY + 32);
+    doc.text(`ICE: ${invoice.clientId.ice}`, margin + 4, currentY + 32);
   }
 
   // Invoice Details Box
-  const detailsBoxX = pageWidth - margin - 80;
-  const detailsBoxWidth = 80;
-  const detailsBoxHeight = 38;
+  const detailsBoxX = pageWidth - margin - 75;
+  const detailsBoxWidth = 75;
   
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(...borderColor);
-  doc.roundedRect(detailsBoxX, currentY, detailsBoxWidth, detailsBoxHeight, 2, 2, 'FD');
+  doc.roundedRect(detailsBoxX, currentY, detailsBoxWidth, clientBoxHeight, 2, 2, 'FD');
   
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   const details = [
     { label: 'Date emission', value: formatDatePDF(invoice.issueDate) },
     { label: 'Date echeance', value: formatDatePDF(invoice.dueDate) },
     { label: 'Statut', value: getStatusLabel(invoice.status) },
   ];
   
-  let detailYPos = currentY + 7;
+  let detailYPos = currentY + 8;
   details.forEach((item) => {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(item.label + ':', detailsBoxX + 5, detailYPos);
+    doc.text(item.label + ':', detailsBoxX + 4, detailYPos);
     
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...primaryColor);
-    doc.text(item.value, detailsBoxX + 45, detailYPos, { maxWidth: 32 });
+    doc.text(item.value, detailsBoxX + 42, detailYPos, { maxWidth: 30 });
     
     detailYPos += 10;
   });
 
-  currentY += 48;
+  currentY += 42;
 
-  // Table
+  // ==================== TABLE ====================
   const items = invoice.items || invoice.lines || [];
   
   const subtotalHT = items.length > 0 
@@ -205,7 +204,7 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     ? items.map(line => {
         const lineTotal = calculateLineTotal(line);
         return [
-          truncateText(line.description || line.name || '-', 45),
+          truncateText(line.description || line.name || '-', 40),
           String(line.quantity || 0),
           formatCurrencyPDF(line.unitPriceHT || line.price || 0, currency),
           `${line.vatRate || 0}%`,
@@ -223,56 +222,60 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     styles: {
       font: 'helvetica',
       fontSize: 8,
-      cellPadding: 3,
+      cellPadding: 2.5,
       overflow: 'linebreak',
       lineColor: borderColor,
       lineWidth: 0.1,
+      cellWidth: 'wrap',
     },
     headStyles: {
       fillColor: primaryColor,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 9,
-      cellPadding: 4,
+      fontSize: 8,
+      cellPadding: 3,
       halign: 'center',
     },
     bodyStyles: {
       fontSize: 8,
       textColor: primaryColor,
-      cellPadding: 3,
+      cellPadding: 2.5,
     },
     alternateRowStyles: {
       fillColor: lightGray,
     },
     columnStyles: {
       0: { 
-        cellWidth: 55, 
+        cellWidth: 60, 
         halign: 'left',
         overflow: 'linebreak',
       },
       1: { 
-        cellWidth: 18, 
+        cellWidth: 15, 
         halign: 'center',
       },
       2: { 
-        cellWidth: 28, 
+        cellWidth: 30, 
         halign: 'right',
+        overflow: 'truncate',
       },
       3: { 
-        cellWidth: 18, 
+        cellWidth: 15, 
         halign: 'center',
       },
       4: { 
-        cellWidth: 18, 
+        cellWidth: 15, 
         halign: 'center',
       },
       5: { 
-        cellWidth: 28, 
+        cellWidth: 35, 
         halign: 'right',
         fontStyle: 'bold',
+        overflow: 'truncate',
       },
     },
     margin: { left: margin, right: margin },
+    tableWidth: contentWidth,
     didDrawPage: (data) => {
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
@@ -285,80 +288,82 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
     },
   });
 
-  currentY = doc.lastAutoTable.finalY + 10;
+  currentY = doc.lastAutoTable.finalY + 8;
 
+  // ==================== TOTALS SECTION ====================
   // Check for page break
-  if (currentY > pageHeight - 70) {
+  if (currentY > pageHeight - 60) {
     doc.addPage();
     currentY = margin;
   }
 
-  // Totals Section
-  const totalsBoxX = pageWidth - margin - 75;
-  const totalsBoxWidth = 75;
+  // Totals box - aligned to the right
+  const totalsBoxWidth = 70;
+  const totalsBoxX = pageWidth - margin - totalsBoxWidth;
+  const totalsBoxHeight = 40;
   
   doc.setDrawColor(...borderColor);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(totalsBoxX - 3, currentY - 3, totalsBoxWidth + 6, 42, 1.5, 1.5, 'FD');
+  doc.roundedRect(totalsBoxX, currentY, totalsBoxWidth, totalsBoxHeight, 2, 2, 'FD');
   
-  // Subtotal
+  // Subtotal row
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 100, 100);
-  doc.text('Sous-total HT:', totalsBoxX, currentY + 4);
+  doc.text('Sous-total HT:', totalsBoxX + 4, currentY + 10);
   
   doc.setTextColor(...primaryColor);
-  doc.text(formatCurrencyPDF(subtotalHT, currency), totalsBoxX + totalsBoxWidth, currentY + 4, { align: 'right' });
+  doc.text(formatCurrencyPDF(subtotalHT, currency), totalsBoxX + totalsBoxWidth - 4, currentY + 10, { align: 'right' });
   
-  // VAT
+  // VAT row
   doc.setTextColor(100, 100, 100);
-  doc.text('TVA:', totalsBoxX, currentY + 13);
+  doc.text('TVA:', totalsBoxX + 4, currentY + 20);
   
   doc.setTextColor(...primaryColor);
-  doc.text(formatCurrencyPDF(totalVAT, currency), totalsBoxX + totalsBoxWidth, currentY + 13, { align: 'right' });
+  doc.text(formatCurrencyPDF(totalVAT, currency), totalsBoxX + totalsBoxWidth - 4, currentY + 20, { align: 'right' });
   
   // Divider
   doc.setDrawColor(...borderColor);
-  doc.line(totalsBoxX, currentY + 19, totalsBoxX + totalsBoxWidth, currentY + 19);
+  doc.line(totalsBoxX + 4, currentY + 26, totalsBoxX + totalsBoxWidth - 4, currentY + 26);
   
-  // Total
+  // Total TTC row
   doc.setFillColor(...primaryColor);
-  doc.roundedRect(totalsBoxX - 3, currentY + 22, totalsBoxWidth + 6, 12, 1, 1, 'F');
+  doc.roundedRect(totalsBoxX + 2, currentY + 29, totalsBoxWidth - 4, 10, 1.5, 1.5, 'F');
   
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('Total TTC:', totalsBoxX, currentY + 30);
-  doc.text(formatCurrencyPDF(totalTTC, currency), totalsBoxX + totalsBoxWidth, currentY + 30, { align: 'right' });
+  doc.text('Total TTC:', totalsBoxX + 6, currentY + 36);
+  doc.text(formatCurrencyPDF(totalTTC, currency), totalsBoxX + totalsBoxWidth - 6, currentY + 36, { align: 'right' });
 
-  // Notes
+  // ==================== NOTES ====================
   if (invoice.notes && invoice.notes.trim()) {
-    currentY += 55;
+    currentY += totalsBoxHeight + 10;
     
     if (currentY > pageHeight - 40) {
       doc.addPage();
       currentY = margin;
     }
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...primaryColor);
     doc.text('Notes:', margin, currentY);
     
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(80, 80, 80);
     
     const notesLines = doc.splitTextToSize(invoice.notes, contentWidth);
-    doc.text(notesLines, margin, currentY + 7);
+    doc.text(notesLines, margin, currentY + 6);
     
-    currentY += 7 + notesLines.length * 5;
+    currentY += 6 + notesLines.length * 4;
   }
 
-  // Footer
-  const footerY = pageHeight - 15;
+  // ==================== FOOTER ====================
+  const footerY = pageHeight - 12;
   doc.setFillColor(...primaryColor);
-  doc.rect(0, footerY - 3, pageWidth, 18, 'F');
+  doc.rect(0, footerY - 3, pageWidth, 15, 'F');
   
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(7);
@@ -368,8 +373,8 @@ export const generateInvoicePDF = (invoice, settings = {}) => {
   if (companyAddress) footerParts.push(companyAddress);
   const footerInfo = footerParts.filter(Boolean).join(' - ');
   
-  doc.text(footerInfo, pageWidth / 2, footerY + 2, { align: 'center', maxWidth: pageWidth - 20 });
-  doc.text('Genere par CRM Comptabilite', pageWidth / 2, footerY + 8, { align: 'center' });
+  doc.text(footerInfo, pageWidth / 2, footerY, { align: 'center', maxWidth: pageWidth - 20 });
+  doc.text('Genere par CRM Comptabilite', pageWidth / 2, footerY + 5, { align: 'center' });
 
   // Save
   const fileName = `${invoice.number || 'facture'}.pdf`;
