@@ -141,19 +141,14 @@ const ClientDetail = () => {
                   )}
                 </div>
               </div>
-              <div className="flex flex-col items-start md:items-end">
+              <div className="flex flex-col items-end">
                 <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
                   {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
                 </Badge>
-                  <div className="text-right">
-                    <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
-                      {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
-                    </Badge>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
-                      <p className="text-2xl font-bold text-primary">{formatCurrency(client.totalBilled || 0, currency)}</p>
-                    </div>
-                  </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
+                  <p className="text-2xl font-bold text-primary">{formatCurrency(client.totalBilled || 0, currency)}</p>
+                </div>
               </div>
             </div>
           </div>

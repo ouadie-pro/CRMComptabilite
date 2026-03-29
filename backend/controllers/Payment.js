@@ -121,7 +121,6 @@ const createPayment = async (req, res) => {
 
 const updatePayment = async (req, res) => {
   try {
-    const oldPayment = await Payment.findById(req.params.id);
     const payment = await Payment.findByIdAndUpdate(
       req.params.id,
       req.body,

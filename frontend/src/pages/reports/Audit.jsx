@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PageLayout } from '../../components/layout';
-import { Button, Select, DataTable, Badge, Loading, Modal } from '../../components/ui';
+import { Button, Select, DataTable, Badge, Loading, Modal, Input } from '../../components/ui';
 import { auditLogService } from '../../services';
 import { formatDateTime, formatDateShort } from '../../utils/formatters';
-import { FiDownload, FiFileText, FiPlus, FiEdit2, FiTrash2, FiChevronRight, FiX, FiFile } from 'react-icons/fi';
+import { FiDownload, FiFileText, FiPlus, FiEdit2, FiTrash2, FiChevronRight, FiX, FiFile, FiCalendar } from 'react-icons/fi';
 import html2pdf from 'html2pdf.js';
 
 const sanitizeHTML = (str) => {
@@ -14,7 +14,7 @@ const sanitizeHTML = (str) => {
 };
 
 const formatFieldValue = (value, key) => {
-  if (value === null || value === undefined) return <span className="text-slate-400 italic">Non défini</span>;
+  if (value === null || value === undefined) return <span className="text-slate-400 italic">Non defini</span>;
   
   const importantKeys = ['amount', 'total', 'price', 'quantity', 'status', 'date', 'name', 'email', 'phone'];
   const isImportant = importantKeys.some(k => key.toLowerCase().includes(k));
@@ -55,13 +55,14 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
 
   const downloadPDF = async () => {
     setDownloadingPDF(true);
+    let wrapper = null;
     try {
       const contentEl = modalContentRef.current;
       if (!contentEl) {
         throw new Error('Content not found');
       }
 
-      const wrapper = document.createElement('div');
+      wrapper = document.createElement('div');
       wrapper.style.cssText = 'padding: 24px; background: #ffffff; width: 210mm; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #334155;';
 
       const title = document.createElement('h2');
@@ -81,17 +82,17 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
 
       addField('Horodatage', formatDateTime(log.createdAt));
       addField('Action', log.action || 'N/A');
-      addField('Catégorie', log.entity || '-');
-      addField('Utilisateur', log.userId?.name || log.userId?.email || 'Système');
+      addField('Categorie', log.entity || '-');
+      addField('Utilisateur', log.userId?.name || log.userId?.email || 'Systeme');
       addField('Adresse IP', log.ipAddress || '-');
-      addField('ID Entité', log.entityId?.toString() || '-');
+      addField('ID Entite', log.entityId?.toString() || '-');
       wrapper.appendChild(grid);
 
       const changesSection = document.createElement('div');
       changesSection.style.cssText = 'margin-bottom: 20px;';
       const changesLabel = document.createElement('div');
       changesLabel.style.cssText = 'font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;';
-      changesLabel.textContent = 'Données modifiées';
+      changesLabel.textContent = 'Donnees modifiees';
       changesSection.appendChild(changesLabel);
 
       const changesBox = document.createElement('div');
@@ -109,7 +110,7 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
         });
         changesBox.appendChild(table);
       } else {
-        changesBox.innerHTML = '<div style="color: #94a3b8; font-style: italic;">Aucune donnée disponible</div>';
+        changesBox.innerHTML = '<div style="color: #94a3b8; font-style: italic;">Aucune donnee disponible</div>';
       }
       changesSection.appendChild(changesBox);
       wrapper.appendChild(changesSection);
@@ -122,7 +123,7 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
 
       const footer = document.createElement('div');
       footer.style.cssText = 'margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center;';
-      footer.textContent = `Généré le ${formatDateTime(new Date())}`;
+      footer.textContent = `Genere le ${formatDateTime(new Date())}`;
       wrapper.appendChild(footer);
 
       document.body.appendChild(wrapper);
@@ -142,18 +143,19 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
       };
 
       await html2pdf().set(opt).from(wrapper).save();
-
-      document.body.removeChild(wrapper);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Erreur lors de la génération du PDF: ' + error.message);
+      alert('Erreur lors de la generation du PDF: ' + error.message);
     } finally {
+      if (wrapper && wrapper.parentNode) {
+        wrapper.parentNode.removeChild(wrapper);
+      }
       setDownloadingPDF(false);
     }
   };
   
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Détails de l'activité" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Details de l'activite" size="lg">
       <div ref={modalContentRef} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -168,25 +170,25 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
             </p>
           </div>
           <div>
-            <label className="text-xs text-slate-500 uppercase tracking-wide">Catégorie</label>
+            <label className="text-xs text-slate-500 uppercase tracking-wide">Categorie</label>
             <p><Badge variant={log.entity === 'Invoice' ? 'info' : log.entity === 'Client' ? 'primary' : log.entity === 'Expense' ? 'warning' : 'default'}>{sanitizeHTML(log.entity || '-')}</Badge></p>
           </div>
           <div>
             <label className="text-xs text-slate-500 uppercase tracking-wide">Utilisateur</label>
-            <p className="font-medium">{sanitizeHTML(log.userId?.name || log.userId?.email || 'Système')}</p>
+            <p className="font-medium">{sanitizeHTML(log.userId?.name || log.userId?.email || 'Systeme')}</p>
           </div>
           <div>
             <label className="text-xs text-slate-500 uppercase tracking-wide">Adresse IP</label>
             <p className="font-mono text-sm bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded inline-block">{sanitizeHTML(log.ipAddress || '-')}</p>
           </div>
           <div>
-            <label className="text-xs text-slate-500 uppercase tracking-wide">ID Entité</label>
+            <label className="text-xs text-slate-500 uppercase tracking-wide">ID Entite</label>
             <p className="font-mono text-xs">{log.entityId ? sanitizeHTML(log.entityId.toString()) : '-'}</p>
           </div>
         </div>
         
         <div>
-          <label className="text-xs text-slate-500 uppercase tracking-wide block mb-2">Données modifiées</label>
+          <label className="text-xs text-slate-500 uppercase tracking-wide block mb-2">Donnees modifiees</label>
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
             {log.changes && typeof log.changes === 'object' ? (
               <div className="space-y-2">
@@ -198,7 +200,7 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
                 ))}
               </div>
             ) : (
-              <p className="text-slate-400 italic">Aucune donnée disponible</p>
+              <p className="text-slate-400 italic">Aucune donnee disponible</p>
             )}
           </div>
         </div>
@@ -215,7 +217,7 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
         <Button variant="secondary" onClick={onClose}>Fermer</Button>
         <Button onClick={downloadPDF} loading={downloadingPDF}>
           <FiDownload className="text-sm" />
-          Télécharger PDF
+          Telecharger PDF
         </Button>
       </div>
     </Modal>
@@ -228,35 +230,32 @@ const Audit = () => {
   const [userFilter, setUserFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
+  const [showCustomDate, setShowCustomDate] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      let startDate = null;
-      const now = new Date();
-
-      if (timeFilter === 'day') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      } else if (timeFilter === 'week') {
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      } else if (timeFilter === 'month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (timeFilter === 'year') {
-        startDate = new Date(now.getFullYear(), 0, 1);
+      const params = {};
+      
+      if (userFilter !== 'all') params.userId = userFilter;
+      if (typeFilter !== 'all') params.entity = typeFilter;
+      
+      if (showCustomDate && customStartDate && customEndDate) {
+        params.startDate = customStartDate;
+        params.endDate = customEndDate;
+      } else if (timeFilter !== 'all') {
+        params.timeRange = timeFilter;
       }
-
-      const params = {
-        ...(userFilter !== 'all' && { userId: userFilter }),
-        ...(typeFilter !== 'all' && { entity: typeFilter }),
-        ...(startDate && { startDate: startDate.toISOString() }),
-        ...(timeFilter !== 'all' && { endDate: now.toISOString() }),
-      };
+      
       const response = await auditLogService.getAll(params);
       setLogs(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
+      setLogs([]);
     } finally {
       setLoading(false);
     }
@@ -264,7 +263,18 @@ const Audit = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [userFilter, typeFilter, timeFilter]);
+  }, [userFilter, typeFilter, timeFilter, customStartDate, customEndDate]);
+
+  const handleTimeFilterChange = (value) => {
+    setTimeFilter(value);
+    if (value === 'custom') {
+      setShowCustomDate(true);
+    } else {
+      setShowCustomDate(false);
+      setCustomStartDate('');
+      setCustomEndDate('');
+    }
+  };
 
   const handleRowClick = useCallback((log) => {
     setSelectedLog(log);
@@ -290,12 +300,12 @@ Audit Log - ${formatDateTime(log.createdAt)}
 ${'='.repeat(50)}
 
 Action: ${log.action}
-Catégorie: ${log.entity}
-Utilisateur: ${log.userId?.name || log.userId?.email || 'Système'}
+Categorie: ${log.entity}
+Utilisateur: ${log.userId?.name || log.userId?.email || 'Systeme'}
 Adresse IP: ${log.ipAddress || '-'}
-ID Entité: ${log.entityId || '-'}
+ID Entite: ${log.entityId || '-'}
 
-Données modifiées:
+Donnees modifiees:
 ${log.changes ? JSON.stringify(log.changes, null, 2) : 'N/A'}
 
 ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
@@ -346,13 +356,13 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
             {row.userId?.name?.charAt(0) || row.userId?.email?.charAt(0) || 'U'}
           </div>
-          <span className="text-sm">{sanitizeHTML(row.userId?.name || row.userId?.email || 'Système')}</span>
+          <span className="text-sm">{sanitizeHTML(row.userId?.name || row.userId?.email || 'Systeme')}</span>
         </div>
       ),
     },
     {
       key: 'entity',
-      header: 'Catégorie',
+      header: 'Categorie',
       render: (row) => (
         <Badge variant={entityColors[row.entity] || 'default'}>
           {sanitizeHTML(row.entity || '-')}
@@ -387,21 +397,21 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
           <button
             onClick={(e) => { e.stopPropagation(); downloadJSON(row); }}
             className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="Télécharger JSON"
+            title="Telecharger JSON"
           >
             <FiFileText className="text-xs" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); downloadPDF(row); }}
             className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="Télécharger PDF (TXT)"
+            title="Telecharger PDF (TXT)"
           >
             <FiDownload className="text-xs" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleRowClick(row); }}
             className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="Voir détails"
+            title="Voir details"
           >
             <FiChevronRight className="text-xs" />
           </button>
@@ -413,7 +423,7 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
   return (
     <PageLayout title="Journal d'Audit">
       <div className="space-y-6">
-        <p className="text-slate-500">Surveillez l'activité et les modifications effectuées sur la plateforme.</p>
+        <p className="text-slate-500">Surveillez l'activite et les modifications effectuees sur la plateforme.</p>
 
         <div className="flex flex-wrap gap-4 items-center">
           <Select value={userFilter} onChange={(e) => setUserFilter(e.target.value)} className="w-48">
@@ -425,21 +435,48 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
             <option value="Client">Client</option>
             <option value="Invoice">Facture</option>
             <option value="Product">Produit</option>
-            <option value="Expense">Dépense</option>
+            <option value="Expense">Depense</option>
           </Select>
-          <Select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} className="w-48">
+          <Select value={showCustomDate ? 'custom' : timeFilter} onChange={(e) => handleTimeFilterChange(e.target.value)} className="w-48">
             <option value="all">Tout le temps</option>
             <option value="day">Aujourd'hui</option>
             <option value="week">Cette semaine</option>
             <option value="month">Ce mois</option>
-            <option value="year">Cette année</option>
+            <option value="last_month">Mois precedent</option>
+            <option value="quarter">Ce trimestre</option>
+            <option value="year">Cette annee</option>
           </Select>
+          
+          {showCustomDate && (
+            <div className="flex items-center gap-2">
+              <FiCalendar className="text-slate-400" />
+              <input
+                type="month"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+              />
+              <span className="text-slate-500">a</span>
+              <input
+                type="month"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+              />
+            </div>
+          )}
+          
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" size="sm" onClick={downloadAllJSON}>
               <FiDownload className="text-sm" />
               JSON
             </Button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <span className="font-medium">{logs.length}</span>
+          <span>evenements trouves</span>
         </div>
 
         {loading ? (
@@ -452,7 +489,7 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
             <DataTable
               columns={columns}
               data={logs}
-              emptyMessage="Aucun événement trouvé"
+              emptyMessage="Aucun evenement trouve"
               onRowClick={handleRowClick}
               rowClassName="hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
             />

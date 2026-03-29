@@ -5,6 +5,9 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "seed:full": "node seed.js",
     "audit:migrate": "node scripts/generateAuditLogs.js"
   },
   "keywords": [],

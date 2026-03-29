@@ -9,31 +9,67 @@ const getAllAuditLogs = async (req, res) => {
     if (entity) query.entity = entity;
     if (action) query.action = action;
 
+    const now = new Date();
+    let calculatedStartDate = null;
+    let calculatedEndDate = null;
+
     if (timeRange && timeRange !== 'all') {
-      const now = new Date();
-      query.createdAt = {};
-      
+      calculatedEndDate = new Date(now);
+      calculatedEndDate.setHours(23, 59, 59, 999);
+
       switch (timeRange) {
         case 'day':
-          query.createdAt.$gte = new Date(now.setHours(0, 0, 0, 0));
+          calculatedStartDate = new Date(now);
+          calculatedStartDate.setHours(0, 0, 0, 0);
           break;
         case 'week':
-          const weekStart = new Date(now);
-          weekStart.setDate(now.getDate() - now.getDay());
-          weekStart.setHours(0, 0, 0, 0);
-          query.createdAt.$gte = weekStart;
+          calculatedStartDate = new Date(now);
+          calculatedStartDate.setDate(now.getDate() - 7);
+          calculatedStartDate.setHours(0, 0, 0, 0);
           break;
         case 'month':
-          query.createdAt.$gte = new Date(now.getFullYear(), now.getMonth(), 1);
+          calculatedStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          calculatedStartDate.setHours(0, 0, 0, 0);
+          break;
+        case 'last_month':
+          const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          calculatedStartDate = new Date(firstDayThisMonth);
+          calculatedStartDate.setMonth(calculatedStartDate.getMonth() - 1);
+          calculatedEndDate = new Date(firstDayThisMonth);
+          calculatedEndDate.setDate(calculatedEndDate.getDate() - 1);
+          calculatedEndDate.setHours(23, 59, 59, 999);
+          break;
+        case 'quarter':
+          calculatedStartDate = new Date(now);
+          calculatedStartDate.setMonth(now.getMonth() - 3);
+          calculatedStartDate.setHours(0, 0, 0, 0);
           break;
         case 'year':
-          query.createdAt.$gte = new Date(now.getFullYear(), 0, 1);
+          calculatedStartDate = new Date(now.getFullYear(), 0, 1);
+          calculatedStartDate.setHours(0, 0, 0, 0);
           break;
+        default:
+          break;
+      }
+
+      if (calculatedStartDate && calculatedEndDate) {
+        query.createdAt = {
+          $gte: calculatedStartDate,
+          $lte: calculatedEndDate
+        };
       }
     } else if (startDate || endDate) {
       query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
-      if (endDate) query.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        calculatedStartDate = new Date(startDate);
+        calculatedStartDate.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = calculatedStartDate;
+      }
+      if (endDate) {
+        calculatedEndDate = new Date(endDate);
+        calculatedEndDate.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = calculatedEndDate;
+      }
     }
 
     const logs = await AuditLog.find(query)

@@ -294,16 +294,22 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
           <span>Les entrées sont automatiquement créées depuis les paiements de factures. Utilisez ce formulaire uniquement pour les sorties ou ajustements manuels.</span>
         </div>
 
-        <Select
-          label="Type"
-          name="type"
-          value={formData.type}
-          onChange={handleChange}
-          required
-          disabled
-        >
-          <option value="out">Sortie</option>
-        </Select>
+        <div>
+          <div className="flex items-center gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Type</label>
+            <span title="Les entrees sont creees automatiquement depuis les paiements de factures" className="text-slate-400 cursor-help text-xs">?</span>
+          </div>
+          <Select
+            name="type"
+            value={formData.type}
+            onChange={handleChange}
+            required
+            disabled
+          >
+            <option value="out">Sortie</option>
+          </Select>
+          <p className="text-xs text-slate-500 mt-1">Les entrees sont creees automatiquement depuis les paiements de factures</p>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <Input

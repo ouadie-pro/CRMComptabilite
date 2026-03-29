@@ -6,12 +6,18 @@ const {
   getReminderById,
   createReminder,
   updateReminder,
-  deleteReminder
+  deleteReminder,
+  getUpcomingReminders,
+  getReminderStats,
+  sendBatchReminders
 } = require('../controllers/Reminder');
 
 Router.use(authMiddleware);
 
 Router.get('/', getAllReminders);
+Router.get('/upcoming', getUpcomingReminders);
+Router.get('/stats', getReminderStats);
+Router.post('/send-batch', sendBatchReminders);
 Router.get('/:id', getReminderById);
 Router.post('/', createReminder);
 Router.put('/:id', updateReminder);

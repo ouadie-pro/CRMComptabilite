@@ -1,14 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
-import { Card, Badge, Loading } from '../../components/ui';
-import { invoiceService, clientService, expenseService } from '../../services';
+import { Card, Button, Loading, Badge } from '../../components/ui';
+import { invoiceService, clientService, expenseService, cashTransactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
-import { formatCurrency } from '../../utils/formatters';
-import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase } from 'react-icons/fi';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase, FiDownload, FiCalendar, FiFilter } from 'react-icons/fi';
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
+} from 'recharts';
+import html2pdf from 'html2pdf.js';
+
+const CHART_COLORS = {
+  primary: '#3b82f6',
+  success: '#10b981',
+  danger: '#ef4444',
+  warning: '#f59e0b',
+  purple: '#8b5cf6',
+  gray: '#6b7280'
+};
+
+const CATEGORY_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
 
 const Reports = () => {
   const { billing } = useSettings();
+  const currency = billing?.currency || 'MAD';
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     revenue: 0,
@@ -19,120 +36,264 @@ const Reports = () => {
   });
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [cashFlowData, setCashFlowData] = useState([]);
   const location = useLocation();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [exporting, setExporting] = useState(false);
+  const reportRef = useRef(null);
+
+  const fetchReportsData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (dateRange.start) params.startDate = dateRange.start;
+      if (dateRange.end) params.endDate = dateRange.end;
+
+      const [invoicesRes, clientsRes, expensesRes, chartRes] = await Promise.all([
+        invoiceService.getAll(params),
+        clientService.getAll(),
+        expenseService.getAll(params),
+        cashTransactionService.getChartData({ period: 'monthly', months: 6 })
+      ]);
+
+      let allInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes.data || []);
+      let allClients = Array.isArray(clientsRes) ? clientsRes : (clientsRes.data || []);
+      let allExpenses = Array.isArray(expensesRes) ? expensesRes : (expensesRes.data || []);
+      const cashData = chartRes.data || chartRes || [];
+
+      if (dateRange.start || dateRange.end) {
+        const startDate = dateRange.start ? new Date(dateRange.start) : new Date(0);
+        const endDate = dateRange.end ? new Date(dateRange.end) : new Date();
+
+        allInvoices = allInvoices.filter(inv => {
+          const invDate = new Date(inv.issueDate || inv.date);
+          return invDate >= startDate && invDate <= endDate;
+        });
+
+        allExpenses = allExpenses.filter(exp => {
+          const expDate = new Date(exp.date);
+          return expDate >= startDate && expDate <= endDate;
+        });
+      }
+
+      allInvoices = allInvoices.map(inv => ({
+        ...inv,
+        number: inv.number || inv.invoiceNumber,
+        issueDate: inv.issueDate || inv.date,
+        totalTTC: inv.totalTTC || inv.total || 0,
+      }));
+
+      let filteredInvoices = allInvoices;
+      if (activeFilter === 'income') {
+        filteredInvoices = allInvoices.filter(inv => inv.status === 'payé');
+      } else if (activeFilter === 'expense') {
+        filteredInvoices = [];
+      }
+
+      const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0);
+      const totalExpenses = allExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+      const netProfit = totalRevenue - totalExpenses;
+      const cashflow = filteredInvoices.filter(inv => inv.status === 'payé')
+        .reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0);
+      const activeClients = allClients.filter(client => client.status === 'actif').length;
+
+      setStats({
+        revenue: totalRevenue,
+        expenses: totalExpenses,
+        profit: netProfit,
+        cashflow: cashflow,
+        activeClients: activeClients,
+      });
+
+      const months = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = date.toLocaleString('default', { month: 'short' });
+        months.push({
+          label: monthKey.charAt(0).toUpperCase() + monthKey.slice(1),
+          start: new Date(date.getFullYear(), date.getMonth(), 1),
+          end: new Date(date.getFullYear(), date.getMonth() + 1, 0),
+        });
+      }
+
+      const chartData = months.map(month => {
+        const monthInvoices = allInvoices.filter(inv => {
+          const invDate = new Date(inv.issueDate || inv.date);
+          return invDate >= month.start && invDate <= month.end;
+        });
+        const monthExpenses = allExpenses.filter(exp => {
+          const expDate = new Date(exp.date);
+          return expDate >= month.start && expDate <= month.end;
+        });
+        const revenue = monthInvoices.reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0);
+        const expenses = monthExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+        return {
+          month: month.label,
+          revenue,
+          expenses,
+          profit: revenue - expenses
+        };
+      });
+
+      setMonthlyData(chartData);
+
+      const categoryMap = {};
+      allExpenses.forEach(exp => {
+        const cat = exp.category || 'autre';
+        if (!categoryMap[cat]) categoryMap[cat] = 0;
+        categoryMap[cat] += exp.amount || 0;
+      });
+
+      const categories = Object.entries(categoryMap).map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value: Math.round(value * 100) / 100
+      }));
+      setExpenseCategories(categories);
+
+      const formattedCashData = Array.isArray(cashData) ? cashData.map(d => ({
+        month: d._id || d.month || '',
+        income: d.income || d.totalIn || 0,
+        expenses: d.expenses || d.totalOut || 0,
+        balance: (d.income || d.totalIn || 0) - (d.expenses || d.totalOut || 0)
+      })) : [];
+      setCashFlowData(formattedCashData);
+
+      const transactions = [
+        ...filteredInvoices.slice(0, 5).map(inv => ({
+          client: inv.clientId?.companyName || inv.client?.name || 'Client',
+          type: 'Revenu',
+          amount: inv.totalTTC || 0,
+          status: inv.status === 'payé' || inv.status === 'paid' ? 'paid' : 'pending',
+          rawDate: new Date(inv.issueDate || inv.date),
+          date: formatDateShort(inv.issueDate || inv.date),
+        })),
+        ...allExpenses.slice(0, 5).map(exp => ({
+          client: exp.description || 'Dépense',
+          type: 'Dépense',
+          amount: -(exp.amount || 0),
+          status: 'paid',
+          rawDate: new Date(exp.date),
+          date: formatDateShort(exp.date),
+        })),
+      ].sort((a, b) => b.rawDate - a.rawDate).slice(0, 8);
+
+      setRecentTransactions(transactions);
+    } catch (error) {
+      console.error('Error fetching reports data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeFilter, dateRange.start, dateRange.end]);
 
   useEffect(() => {
-    const fetchReportsData = async () => {
-      setLoading(true);
-      try {
-        const [invoicesRes, clientsRes, expensesRes] = await Promise.all([
-          invoiceService.getAll(),
-          clientService.getAll(),
-          expenseService.getAll(),
-        ]);
-
-        const allInvoices = (invoicesRes.data || invoicesRes).map(inv => ({
-          ...inv,
-          number: inv.number || inv.invoiceNumber,
-          issueDate: inv.issueDate || inv.date,
-          totalTTC: inv.totalTTC || inv.total || 0,
-        }));
-        const allClients = clientsRes.data || clientsRes;
-        const allExpenses = expensesRes.data || expensesRes;
-
-        const totalRevenue = allInvoices.reduce(
-          (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
-        );
-
-        const totalExpenses = allExpenses.reduce(
-          (sum, exp) => sum + (exp.amount || 0), 0
-        );
-
-        const netProfit = totalRevenue - totalExpenses;
-
-        const paidInvoices = allInvoices.filter(inv => inv.status === 'payé');
-        const cashflow = paidInvoices.reduce(
-          (sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0
-        );
-
-        const activeClients = allClients.filter(
-          client => client.status === 'actif'
-        ).length;
-
-        setStats({
-          revenue: totalRevenue,
-          expenses: totalExpenses,
-          profit: netProfit,
-          cashflow: cashflow,
-          activeClients: activeClients,
-        });
-
-        const months = [];
-        const now = new Date();
-        for (let i = 5; i >= 0; i--) {
-          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const monthKey = date.toLocaleString('default', { month: 'short' });
-          months.push({
-            label: monthKey.charAt(0).toUpperCase() + monthKey.slice(1),
-            start: new Date(date.getFullYear(), date.getMonth(), 1),
-            end: new Date(date.getFullYear(), date.getMonth() + 1, 0),
-          });
-        }
-
-        const chartData = months.map(month => {
-          const monthInvoices = allInvoices.filter(inv => {
-            const invDate = new Date(inv.issueDate || inv.date);
-            return invDate >= month.start && invDate <= month.end;
-          });
-          const monthExpenses = allExpenses.filter(exp => {
-            const expDate = new Date(exp.date);
-            return expDate >= month.start && expDate <= month.end;
-          });
-          return {
-            month: month.label,
-            revenue: monthInvoices.reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0),
-            expenses: monthExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0),
-          };
-        });
-
-        setMonthlyData(chartData);
-
-        const transactions = [
-          ...allInvoices.slice(0, 5).map(inv => ({
-            client: inv.clientId?.companyName || inv.client?.name || 'Client',
-            type: 'Revenu',
-            amount: inv.totalTTC || 0,
-            status: inv.status === 'payé' || inv.status === 'paid' ? 'paid' : 'pending',
-            rawDate: new Date(inv.issueDate || inv.date),
-            date: new Date(inv.issueDate || inv.date).toLocaleDateString('fr-FR'),
-          })),
-          ...allExpenses.slice(0, 5).map(exp => ({
-            client: exp.description || 'Dépense',
-            type: 'Dépense',
-            amount: -(exp.amount || 0),
-            status: 'paid',
-            rawDate: new Date(exp.date),
-            date: new Date(exp.date).toLocaleDateString('fr-FR'),
-          })),
-        ].sort((a, b) => b.rawDate - a.rawDate).slice(0, 8);
-
-        setRecentTransactions(transactions);
-      } catch (error) {
-        console.error('Error fetching reports data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchReportsData();
-  }, [location.pathname, refreshKey]);
+  }, [location.pathname, refreshKey, fetchReportsData]);
 
   const refreshReports = () => {
     setRefreshKey(prev => prev + 1);
   };
 
   window.refreshReports = refreshReports;
+
+  const handleExportPDF = async () => {
+    setExporting(true);
+    let styleOverride = null;
+    try {
+      const element = reportRef.current;
+      if (!element) return;
+
+      styleOverride = document.createElement('style');
+      styleOverride.id = 'pdf-export-override';
+      styleOverride.textContent = `
+        [style*="oklch"] { color: #333 !important; background-color: #fff !important; }
+        [fill*="oklch"] { fill: #6b7280 !important; }
+        [stroke*="oklch"] { stroke: #6b7280 !important; }
+        [stop-color*="oklch"] { stop-color: #6b7280 !important; }
+        * { color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+      `;
+      document.head.appendChild(styleOverride);
+
+      const replaceOklch = (str) => str.replace(/oklch\([^)]+\)/g, '#6b7280');
+
+      const opt = {
+        margin: 10,
+        filename: `rapport-financier-${formatDateShort(new Date())}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        onclone: (clonedDoc) => {
+          const overrideStyle = clonedDoc.createElement('style');
+          overrideStyle.textContent = `
+            [style*="oklch"] { color: #333 !important; background-color: #fff !important; }
+            [fill*="oklch"] { fill: #6b7280 !important; }
+            [stroke*="oklch"] { stroke: #6b7280 !important; }
+            [stop-color*="oklch"] { stop-color: #6b7280 !important; }
+          `;
+          clonedDoc.head.appendChild(overrideStyle);
+
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach(el => {
+            const styleAttr = el.getAttribute('style') || '';
+            if (styleAttr.includes('oklch')) {
+              el.setAttribute('style', replaceOklch(styleAttr));
+            }
+            if (el.hasAttribute('fill') && el.getAttribute('fill').includes('oklch')) {
+              el.setAttribute('fill', '#6b7280');
+            }
+            if (el.hasAttribute('stroke') && el.getAttribute('stroke').includes('oklch')) {
+              el.setAttribute('stroke', '#6b7280');
+            }
+            if (el.hasAttribute('stop-color') && el.getAttribute('stop-color').includes('oklch')) {
+              el.setAttribute('stop-color', '#6b7280');
+            }
+          });
+
+          clonedDoc.querySelectorAll('style').forEach(style => {
+            if (style.textContent && style.textContent.includes('oklch')) {
+              style.textContent = replaceOklch(style.textContent);
+            }
+          });
+
+          clonedDoc.querySelectorAll('svg').forEach(svg => {
+            if (svg.innerHTML.includes('oklch')) {
+              svg.innerHTML = replaceOklch(svg.innerHTML);
+            }
+          });
+
+          const allSVGElements = clonedDoc.querySelectorAll('svg *');
+          allSVGElements.forEach(el => {
+            ['fill', 'stroke', 'stop-color', 'color'].forEach(attr => {
+              if (el.hasAttribute(attr)) {
+                const val = el.getAttribute(attr);
+                if (val && val.includes('oklch')) {
+                  el.setAttribute(attr, '#6b7280');
+                }
+              }
+            });
+          });
+        }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    } finally {
+      setExporting(false);
+      if (styleOverride && styleOverride.parentNode) {
+        styleOverride.parentNode.removeChild(styleOverride);
+      }
+    }
+  };
 
   const getIcon = (type) => {
     switch (type) {
@@ -143,12 +304,42 @@ const Reports = () => {
     }
   };
 
-  const getStats = () => [
-    { title: 'Revenu Total', value: stats.revenue, change: null, type: 'revenue' },
-    { title: 'Dépenses Totales', value: stats.expenses, change: null, type: 'expense' },
-    { title: 'Bénéfice Net', value: stats.profit, change: null, type: 'profit' },
-    { title: 'Flux de Trésorerie', value: stats.cashflow, change: null, type: 'cashflow' },
+  const getStatCards = () => [
+    { title: 'Revenu Total', value: stats.revenue, change: null, type: 'revenue', filter: 'income' },
+    { title: 'Dépenses Totales', value: stats.expenses, change: null, type: 'expense', filter: 'expense' },
+    { title: 'Bénéfice Net', value: stats.profit, change: null, type: 'profit', filter: 'all' },
+    { title: 'Flux de Trésorerie', value: stats.cashflow, change: null, type: 'cashflow', filter: 'all' },
   ];
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg">
+          <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: {formatCurrency(entry.value || 0, currency)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const PieTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg">
+          <p className="font-semibold text-slate-700 dark:text-slate-300">{payload[0].name}</p>
+          <p className="text-sm text-primary">
+            {formatCurrency(payload[0].value || 0, currency)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   if (loading) {
     return (
@@ -162,59 +353,133 @@ const Reports = () => {
 
   return (
     <PageLayout title="Rapports">
-      <div className="space-y-8">
-        <p className="text-slate-500">Aperçu de la performance financière actuelle</p>
+      <div ref={reportRef} className="space-y-8">
+        <div className="flex items-center justify-between">
+          <p className="text-slate-500">Aperçu de la performance financière actuelle</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <FiCalendar className="text-slate-400" />
+              <input
+                type="month"
+                value={dateRange.start}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+              />
+              <span className="text-slate-500">à</span>
+              <input
+                type="month"
+                value={dateRange.end}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+              />
+            </div>
+            <Button variant="secondary" onClick={() => {
+              setDateRange({ start: '', end: '' });
+              setActiveFilter('all');
+            }}>
+              <FiFilter className="text-sm" />
+              Réinitialiser
+            </Button>
+            <Button onClick={handleExportPDF} loading={exporting}>
+              <FiDownload className="text-sm" />
+              Export PDF
+            </Button>
+          </div>
+        </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {getStats().map((stat, index) => (
-            <Card key={index} className="p-6">
+          {getStatCards().map((stat, index) => (
+            <Card 
+              key={index} 
+              className={`p-6 cursor-pointer transition-all duration-200 ${
+                activeFilter === stat.filter ? 'ring-2 ring-primary ring-offset-2' : ''
+              }`}
+              onClick={() => setActiveFilter(stat.filter === activeFilter ? 'all' : stat.filter)}
+            >
               <div className="flex justify-between items-start mb-4">
                 <p className="text-sm text-slate-500 font-medium">{stat.title}</p>
-                <span className={`p-2 rounded-lg ${stat.type === 'revenue' ? 'bg-emerald-50 text-emerald-600' : stat.type === 'expense' ? 'bg-slate-100 text-slate-600' : stat.type === 'profit' ? 'bg-primary/10 text-primary' : 'bg-rose-50 text-rose-600'}`}>
+                <span className={`p-2 rounded-lg ${
+                  stat.type === 'revenue' ? 'bg-emerald-50 text-emerald-600' : 
+                  stat.type === 'expense' ? 'bg-slate-100 text-slate-600' : 
+                  stat.type === 'profit' ? 'bg-primary/10 text-primary' : 
+                  'bg-rose-50 text-rose-600'
+                }`}>
                   {getIcon(stat.type)}
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-2xl font-bold">{formatCurrency(stat.value, billing?.currency || 'MAD')}</h3>
+                <h3 className="text-2xl font-bold">{formatCurrency(stat.value, currency)}</h3>
               </div>
             </Card>
           ))}
         </div>
 
-        {/* Chart */}
-        <Card title="Revenus vs Dépenses">
-          {monthlyData.length === 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card title="Revenus vs Dépenses vs Bénéfice">
+            {monthlyData.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">Aucune donnée disponible</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={monthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+                  <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="revenue" name="Revenus" fill={CHART_COLORS.success} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name="Dépenses" fill={CHART_COLORS.danger} radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="profit" name="Bénéfice Net" stroke={CHART_COLORS.primary} strokeWidth={3} dot={{ fill: CHART_COLORS.primary, strokeWidth: 2 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+
+          <Card title="Répartition des Dépenses">
+            {expenseCategories.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">Aucune dépense enregistrée</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                  <Pie
+                    data={expenseCategories}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={120}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {expenseCategories.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<PieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
+
+        <Card title="Flux de Trésorerie (6 derniers mois)">
+          {cashFlowData.length === 0 ? (
             <p className="text-slate-500 text-center py-8">Aucune donnée disponible</p>
           ) : (
-            <>
-              <div className="h-80 flex items-end justify-between gap-4 px-4">
-                {(() => {
-                  const maxValue = Math.max(...monthlyData.map(d => Math.max(d.revenue, d.expenses)), 1);
-                  return monthlyData.map((data, i) => {
-                    const revenueHeight = maxValue > 0 ? (data.revenue / maxValue) * 100 : 0;
-                    const expenseHeight = maxValue > 0 ? (data.expenses / maxValue) * 100 : 0;
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-3">
-                        <div className="w-full flex justify-center items-end gap-1 h-64">
-                          <div className="w-8 bg-primary rounded-t-sm transition-all duration-300" style={{ height: `${Math.max(revenueHeight, 2)}%` }}></div>
-                          <div className="w-8 bg-slate-200 dark:bg-slate-700 rounded-t-sm transition-all duration-300" style={{ height: `${Math.max(expenseHeight, 2)}%` }}></div>
-                        </div>
-                        <span className="text-xs font-bold text-slate-500">{data.month}</span>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-              <div className="flex justify-center gap-8 mt-4 text-xs font-medium">
-                <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-primary"></span> Revenus</div>
-                <div className="flex items-center gap-2"><span className="size-3 rounded-full bg-slate-400"></span> Dépenses</div>
-              </div>
-            </>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={cashFlowData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
+                <YAxis stroke="#6b7280" fontSize={12} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                <Area type="monotone" dataKey="income" name="Entrées" stroke={CHART_COLORS.success} fill={CHART_COLORS.success} fillOpacity={0.2} />
+                <Area type="monotone" dataKey="expenses" name="Sorties" stroke={CHART_COLORS.danger} fill={CHART_COLORS.danger} fillOpacity={0.2} />
+                <Area type="monotone" dataKey="balance" name="Solde" stroke={CHART_COLORS.primary} fill={CHART_COLORS.primary} fillOpacity={0.1} />
+              </AreaChart>
+            </ResponsiveContainer>
           )}
         </Card>
 
-        {/* Recent Transactions */}
         <Card title="Dernières Transactions">
           <div className="space-y-4">
             {recentTransactions.length === 0 ? (
@@ -224,7 +489,11 @@ const Reports = () => {
                 <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="size-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                      {tx.type === 'Revenu' ? <FiTrendingUp className="text-sm text-slate-600" /> : <FiShoppingCart className="text-sm text-slate-600" />}
+                      {tx.type === 'Revenu' ? (
+                        <FiTrendingUp className="text-sm text-emerald-600" />
+                      ) : (
+                        <FiShoppingCart className="text-sm text-red-600" />
+                      )}
                     </div>
                     <div>
                       <p className="text-sm font-medium">{tx.client}</p>
@@ -232,10 +501,12 @@ const Reports = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount), billing?.currency || 'MAD')}
+                    <p className={`text-sm font-bold ${tx.amount > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {tx.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount), currency)}
                     </p>
-                    <Badge variant={tx.status === 'paid' ? 'success' : 'warning'}>{tx.status === 'paid' ? 'Payé' : 'En attente'}</Badge>
+                    <Badge variant={tx.status === 'paid' ? 'success' : 'warning'}>
+                      {tx.status === 'paid' ? 'Payé' : 'En attente'}
+                    </Badge>
                   </div>
                 </div>
               ))

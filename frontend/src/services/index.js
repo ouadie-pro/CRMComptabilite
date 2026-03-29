@@ -105,9 +105,7 @@ export const productService = {
 
 export const paymentService = {
   getAll: async (params = {}) => {
-    console.log('[paymentService] GET /payments with params:', params);
     const response = await api.get('/payments', { params });
-    console.log('[paymentService] Response:', response.data);
     return response.data;
   },
 
@@ -165,6 +163,11 @@ export const reminderService = {
     return response.data;
   },
 
+  getById: async (id) => {
+    const response = await api.get(`/reminders/${id}`);
+    return response.data;
+  },
+
   create: async (data) => {
     const response = await api.post('/reminders', data);
     return response.data;
@@ -177,6 +180,21 @@ export const reminderService = {
 
   delete: async (id) => {
     const response = await api.delete(`/reminders/${id}`);
+    return response.data;
+  },
+
+  getUpcoming: async () => {
+    const response = await api.get('/reminders/upcoming');
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get('/reminders/stats');
+    return response.data;
+  },
+
+  sendBatch: async () => {
+    const response = await api.post('/reminders/send-batch');
     return response.data;
   },
 };
@@ -211,6 +229,11 @@ export const interactionService = {
 export const auditLogService = {
   getAll: async (params = {}) => {
     const response = await api.get('/audit-logs', { params });
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/audit-logs/${id}`);
     return response.data;
   },
 };
