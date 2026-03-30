@@ -28,9 +28,16 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('Veuillez entrer un montant valide supérieur à 0');
+      return;
+    }
+    
     const dataToSubmit = {
       ...formData,
-      amount: formData.amount === '' ? 0 : formData.amount
+      amount: amount
     };
     onSubmit(dataToSubmit);
   };

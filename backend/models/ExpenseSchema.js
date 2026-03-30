@@ -45,4 +45,18 @@ const expenseSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+expenseSchema.statics.aggregateWithPagination = async function(filter = {}) {
+  const linkedExpenses = await CashTransaction.distinct('sourceId', { source: 'expense' });
+  const linkedIds = linkedExpenses.map(id => id?.toString()).filter(Boolean);
+
+  const allMatching = await this.find(filter);
+  const unlinkedExpenses = allMatching.filter(e => !linkedIds.includes(e._id.toString()));
+
+  return {
+    count: unlinkedExpenses.length,
+    total: unlinkedExpenses.reduce((sum, e) => sum + (e.amount || 0), 0)
+  };
+};
+
+const CashTransaction = require('./CashTransactionSchema');
 module.exports = mongoose.model("Expense", expenseSchema);

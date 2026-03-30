@@ -49,7 +49,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
     const fetchClients = async () => {
       try {
         const response = await clientService.getAll({ limit: 100 });
-        setClients(response);
+        const clientsData = Array.isArray(response) ? response : (response.data || []);
+        setClients(clientsData);
       } catch (error) {
         console.error('Error fetching clients:', error);
       } finally {
@@ -59,7 +60,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
     const fetchProducts = async () => {
       try {
         const response = await productService.getAll({ limit: 100 });
-        setProducts(response.filter(p => p.status === 'actif'));
+        const productsData = Array.isArray(response) ? response : (response.data || []);
+        setProducts(productsData.filter(p => p.status === 'actif'));
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {
@@ -511,6 +513,7 @@ const Invoices = () => {
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pdfDownloading, setPdfDownloading] = useState(null);
 
   const statusFilterMap = {
     draft: 'brouillon',
@@ -623,8 +626,16 @@ const Invoices = () => {
     return <Badge variant={variants[mappedStatus]}>{labels[mappedStatus]}</Badge>;
   };
 
-  const generatePDF = (invoice) => {
-    generateInvoicePDF(invoice, { company, billing });
+  const generatePDF = async (invoice) => {
+    setPdfDownloading(invoice._id);
+    try {
+      await generateInvoicePDF(invoice, { company, billing });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Erreur lors de la génération du PDF');
+    } finally {
+      setPdfDownloading(null);
+    }
   };
 
   const columns = [
@@ -664,8 +675,8 @@ const Invoices = () => {
       width: '100px',
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => generatePDF(row)} title="Télécharger PDF">
-            <FiDownload className="text-sm" />
+          <Button variant="ghost" size="sm" onClick={() => generatePDF(row)} disabled={pdfDownloading === row._id} title="Télécharger PDF">
+            {pdfDownloading === row._id ? <Loading size="sm" /> : <FiDownload className="text-sm" />}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
             <FiEdit2 className="text-sm" />

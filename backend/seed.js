@@ -123,7 +123,7 @@ const seedPaymentGateways = async () => {
       apiSecret: 'whsec_xxxxxxxxxxxxxxxxxxxxx',
       webhookUrl: 'https://votre-domaine.com/api/webhooks/stripe',
       configuration: {
-        supportedCurrencies: ['MAD', 'EUR', 'USD'],
+        supportedCurrencies: ['MAD'],
         paymentMethods: ['card', 'bank_transfer']
       }
     },
@@ -135,7 +135,7 @@ const seedPaymentGateways = async () => {
       apiSecret: '',
       webhookUrl: '',
       configuration: {
-        supportedCurrencies: ['MAD', 'EUR', 'USD'],
+        supportedCurrencies: ['MAD'],
         paymentMethods: ['paypal']
       }
     }
@@ -418,13 +418,13 @@ const seedPayments = async (invoices, clients) => {
 };
 
 const seedExpenses = async () => {
+  const Expense = require('./models/ExpenseSchema');
   const existing = await Expense.countDocuments();
   if (existing > 0) {
     console.log('  Expenses already exist, skipping');
     return Expense.find().limit(5);
   }
 
-  const Expense = require('./models/ExpenseSchema');
   const user = await User.findOne({ role: 'admin' });
 
   const expensesData = [

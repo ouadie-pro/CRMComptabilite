@@ -177,6 +177,7 @@ const updateInvoice = async (req, res) => {
       }
     }
 
+    const statusMap = { draft: 'brouillon', sent: 'envoyé', paid: 'payé', overdue: 'en_retard', cancelled: 'annulé' };
     const Product = require('../models/ProductSchema');
 
     let invoice;
@@ -222,7 +223,7 @@ const updateInvoice = async (req, res) => {
         ...(number && { number }),
         ...(date && { issueDate: new Date(date) }),
         ...(dueDate && { dueDate: new Date(dueDate) }),
-        ...(status && { status }),
+        ...(status && { status: statusMap[status] || status }),
         ...(notes !== undefined && { notes }),
         items,
         subtotalHT,
@@ -238,9 +239,15 @@ const updateInvoice = async (req, res) => {
         .populate('clientId', 'companyName email')
         .populate('items.productId');
     } else {
+      const updateData = { ...req.body };
+      if (status && !statusMap[status] && !['brouillon', 'envoyé', 'payé', 'en_retard', 'annulé'].includes(status)) {
+        updateData.status = statusMap[status] || status;
+      } else if (status) {
+        updateData.status = statusMap[status] || status;
+      }
       invoice = await Invoice.findByIdAndUpdate(
         req.params.id,
-        req.body,
+        updateData,
         { new: true, runValidators: true }
       )
         .populate('clientId', 'companyName email')

@@ -225,6 +225,107 @@ const logoutUser = async (req, res) => {
   }
 };
 
+const requireRole = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Not authenticated' });
+    }
+    
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ 
+        message: 'Access denied. Insufficient permissions.',
+        requiredRoles: allowedRoles,
+        currentRole: req.user.role
+      });
+    }
+    
+    next();
+  };
+};
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
+
+    const resetToken = jwt.sign(
+      { id: user._id, purpose: 'password-reset' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    console.log(`Password reset token for ${email}: ${resetToken}`);
+    
+    res.status(200).json({ 
+      message: 'If an account with that email exists, a password reset link has been sent.',
+      resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    if (decoded.purpose !== 'password-reset') {
+      return res.status(400).json({ message: 'Invalid token' });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const adminResetPassword = async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+    
+    if (!userId || !newPassword) {
+      return res.status(400).json({ message: 'User ID and new password are required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -234,5 +335,9 @@ module.exports = {
   updateUser,
   changePassword,
   deleteUser,
-  authMiddleware
+  authMiddleware,
+  requireRole,
+  forgotPassword,
+  resetPassword,
+  adminResetPassword
 };

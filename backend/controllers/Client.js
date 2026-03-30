@@ -4,7 +4,7 @@ const logAudit = require('../utils/auditLogger');
 
 const getAllClients = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, page = 1, limit = 10 } = req.query;
     let query = {};
 
     if (status) {
@@ -19,7 +19,14 @@ const getAllClients = async (req, res) => {
       ];
     }
 
-    const clients = await Client.find(query).sort({ createdAt: -1 });
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [clients, total] = await Promise.all([
+      Client.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+      Client.countDocuments(query)
+    ]);
     
     const clientsWithTotal = await Promise.all(
       clients.map(async (client) => {
@@ -33,7 +40,15 @@ const getAllClients = async (req, res) => {
       })
     );
     
-    res.status(200).json(clientsWithTotal);
+    res.status(200).json({
+      data: clientsWithTotal,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -45,7 +60,24 @@ const getClientById = async (req, res) => {
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
-    res.status(200).json(client);
+
+    const clientObj = client.toObject();
+    
+    const invoiceAgg = await Invoice.aggregate([
+      { $match: { clientId: client._id } },
+      { $group: { _id: null, total: { $sum: '$totalTTC' }, count: { $sum: 1 } } }
+    ]);
+    
+    const paymentAgg = await Invoice.aggregate([
+      { $match: { clientId: client._id, status: 'payé' } },
+      { $group: { _id: null, totalPaid: { $sum: '$totalPaid' } } }
+    ]);
+
+    clientObj.totalBilled = invoiceAgg.length > 0 ? invoiceAgg[0].total : 0;
+    clientObj.totalPaid = paymentAgg.length > 0 ? paymentAgg[0].totalPaid : 0;
+    clientObj.invoiceCount = invoiceAgg.length > 0 ? invoiceAgg[0].count : 0;
+    
+    res.status(200).json(clientObj);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -138,19 +170,51 @@ const updateClient = async (req, res) => {
 
 const deleteClient = async (req, res) => {
   try {
-    const client = await Client.findByIdAndDelete(req.params.id);
+    const client = await Client.findById(req.params.id);
     if (!client) {
       return res.status(404).json({ message: 'Client not found' });
     }
+
+    const Invoice = require('../models/InvoiceSchema');
+    const Payment = require('../models/PaymentSchema');
+    const CashTransaction = require('../models/CashTransactionSchema');
+    const Reminder = require('../models/ReminderSchema');
+    const Interaction = require('../models/InteractionSchema');
+
+    const clientInvoices = await Invoice.find({ clientId: client._id });
+    const invoiceIds = clientInvoices.map(inv => inv._id);
+    const clientPayments = await Payment.find({ clientId: client._id });
+    const paymentIds = clientPayments.map(pay => pay._id);
+
+    await Promise.all([
+      invoiceIds.length > 0 ? Invoice.deleteMany({ clientId: client._id }) : Promise.resolve(),
+      clientPayments.length > 0 ? Payment.deleteMany({ clientId: client._id }) : Promise.resolve(),
+      paymentIds.length > 0 ? CashTransaction.deleteMany({ sourceId: { $in: paymentIds } }) : Promise.resolve(),
+      Reminder.deleteMany({ clientId: client._id }),
+      Interaction.deleteMany({ clientId: client._id }),
+      CashTransaction.deleteMany({ linkedInvoiceId: { $in: invoiceIds } }),
+      Client.findByIdAndDelete(client._id)
+    ]);
+
     await logAudit({
       userId: req.user?._id,
       action: "delete",
       entity: "Client",
       entityId: req.params.id,
-      changes: { message: "Client deleted" },
+      changes: { 
+        message: "Client deleted with cascade",
+        deletedInvoices: invoiceIds.length,
+        deletedPayments: paymentIds.length,
+        deletedReminders: await Reminder.countDocuments({ clientId: client._id }),
+        deletedInteractions: await Interaction.countDocuments({ clientId: client._id })
+      },
       req
     });
-    res.status(200).json({ message: 'Client deleted successfully' });
+    res.status(200).json({ 
+      message: 'Client deleted successfully',
+      deletedInvoices: invoiceIds.length,
+      deletedPayments: paymentIds.length
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

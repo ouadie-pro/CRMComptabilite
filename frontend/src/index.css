@@ -7,8 +7,14 @@
   --font-family-display: "Inter", system-ui, sans-serif;
 }
 
+@variant dark (&:where(.dark, .dark *));
+
 body {
   font-family: var(--font-family-display);
+}
+
+.dark {
+  color-scheme: dark;
 }
 
 .no-scrollbar::-webkit-scrollbar {

@@ -3,6 +3,7 @@ const Router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { authMiddleware, requireRole } = require('../controllers/User');
 const {
   getSettings,
   updateSettings,
@@ -39,9 +40,11 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
+Router.use(authMiddleware);
+
 Router.get('/', getSettings);
-Router.put('/', updateSettings);
-Router.post('/test-smtp', testSmtp);
-Router.post('/logo', upload.single('logo'), uploadLogo);
+Router.put('/', requireRole('admin', 'directeur'), updateSettings);
+Router.post('/test-smtp', requireRole('admin', 'directeur'), testSmtp);
+Router.post('/logo', requireRole('admin', 'directeur'), upload.single('logo'), uploadLogo);
 
 module.exports = Router;

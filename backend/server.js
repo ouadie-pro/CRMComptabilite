@@ -6,9 +6,18 @@ const dotenv = require('dotenv').config();
 const PORT = process.env.PORT || 3000;
 const db = require('./config/db');
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, filePath) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+}));
 
 app.use('/api/users', require('./routers/user'));
 app.use('/api/companies', require('./routers/Company'));
@@ -24,6 +33,7 @@ app.use('/api/interactions', require('./routers/interaction'));
 app.use('/api/audit-logs', require('./routers/auditLog'));
 app.use('/api/cash-transactions', require('./routers/cashTransaction'));
 app.use('/api/settings', require('./routers/settings'));
+app.use('/api/notifications', require('./routers/notification'));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

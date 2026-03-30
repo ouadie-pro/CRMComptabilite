@@ -31,7 +31,7 @@ const companySchema = new mongoose.Schema({
     },
     currency: {
         type: String,
-        enum: ["MAD", "EUR", "USD"],
+        enum: ["MAD"],
         default: "MAD"
     },
     defaultVatRate: {

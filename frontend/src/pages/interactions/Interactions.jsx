@@ -24,7 +24,8 @@ const InteractionForm = ({ interaction, onSubmit, onCancel, loading }) => {
     const fetchClients = async () => {
       try {
         const response = await clientService.getAll({ limit: 100 });
-        setClients(response);
+        const clientsData = Array.isArray(response) ? response : (response.data || []);
+        setClients(clientsData);
       } catch (error) {
         console.error('Error fetching clients:', error);
       } finally {

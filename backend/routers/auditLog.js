@@ -1,6 +1,6 @@
 const express = require('express');
 const Router = express.Router();
-const { authMiddleware } = require('../controllers/User');
+const { authMiddleware, requireRole } = require('../controllers/User');
 const {
   getAllAuditLogs,
   getAuditLogById,
@@ -9,8 +9,8 @@ const {
 
 Router.use(authMiddleware);
 
-Router.get('/', getAllAuditLogs);
-Router.get('/:id', getAuditLogById);
+Router.get('/', requireRole('admin', 'directeur'), getAllAuditLogs);
+Router.get('/:id', requireRole('admin', 'directeur'), getAuditLogById);
 Router.post('/', createAuditLog);
 
 module.exports = Router;

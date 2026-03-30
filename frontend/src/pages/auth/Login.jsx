@@ -2,12 +2,18 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button, Input } from '../../components/ui';
-import { FiBriefcase, FiArrowRight } from 'react-icons/fi';
+import { FiBriefcase, FiArrowRight, FiMail } from 'react-icons/fi';
+import api from '../../services/api';
+
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
   const { login, isAuthenticated, loading: authLoading, user } = useAuth();
   const navigate = useNavigate();
 
@@ -60,6 +66,70 @@ const Login = () => {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotMessage('');
+    try {
+      const response = await api.post('/users/forgot-password', { email: forgotEmail });
+      setForgotMessage(response.data.message);
+      setForgotEmail('');
+    } catch (err) {
+      setForgotMessage(err.response?.data?.message || 'Erreur lors de la demande de réinitialisation');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  if (showForgot) {
+    return (
+      <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
+        <div className="w-full max-w-md">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden p-6 md:p-8">
+            <div className="text-center mb-6">
+              <div className="bg-primary/10 text-primary p-3 rounded-xl inline-flex mb-4">
+                <FiMail className="text-2xl" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Mot de passe oublié</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                Entrez votre adresse email pour recevoir un lien de réinitialisation
+              </p>
+            </div>
+
+            {forgotMessage && (
+              <div className={`p-3 rounded-lg text-sm mb-4 ${forgotMessage.includes('Erreur') || forgotMessage.includes('error') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                {forgotMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <Input
+                label="Adresse Email"
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                placeholder="votre@email.com"
+                required
+              />
+              <Button type="submit" className="w-full" loading={forgotLoading}>
+                Envoyer le lien
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setShowForgot(false)}
+                className="text-sm text-primary hover:underline"
+              >
+                Retour à la connexion
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
       <div className="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none overflow-hidden opacity-50 dark:opacity-20">
@@ -108,9 +178,13 @@ const Login = () => {
                   placeholder="••••••••"
                   required
                 />
-                <a className="text-sm font-semibold text-primary dark:text-primary/80 hover:underline block text-right" href="#">
-                  Oublié ?
-                </a>
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(true)}
+                  className="text-sm font-semibold text-primary dark:text-primary/80 hover:underline block text-right w-full"
+                >
+                  Mot de passe oublié ?
+                </button>
               </div>
 
               <Button type="submit" className="w-full" loading={loading}>

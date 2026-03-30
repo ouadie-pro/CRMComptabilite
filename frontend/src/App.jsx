@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 import Login from './pages/auth/Login';
 import Logout from './pages/auth/Logout';
@@ -16,6 +17,7 @@ import Reports from './pages/reports/Reports';
 import Audit from './pages/reports/Audit';
 import Settings from './pages/settings/Settings';
 import Interactions from './pages/interactions/Interactions';
+import Search from './pages/search/Search';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -185,6 +187,15 @@ const AppRoutes = () => {
         }
       />
       
+      <Route
+        path="/search"
+        element={
+          <ProtectedRoute>
+            <Search />
+          </ProtectedRoute>
+        }
+      />
+      
       <Route path="/" element={<HomeRedirect />} />
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
@@ -194,11 +205,13 @@ const AppRoutes = () => {
 const App = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <SettingsProvider>
-          <AppRoutes />
-        </SettingsProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <AppRoutes />
+          </SettingsProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 };

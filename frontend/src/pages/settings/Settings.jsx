@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PageLayout } from '../../components/layout';
-import { Card, Button, Input, Select, Loading, Badge } from '../../components/ui';
+import { Card, Button, Input, Select, Loading, Badge, Modal } from '../../components/ui';
 import { useSettings } from '../../context/SettingsContext';
 import { reminderService, invoiceService } from '../../services';
 import { formatDate, formatCurrency } from '../../utils/formatters';
@@ -40,6 +40,7 @@ const Settings = () => {
   const [overdueInvoices, setOverdueInvoices] = useState([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
+  const [showReminderConfirm, setShowReminderConfirm] = useState(false);
 
   useEffect(() => {
     if (!settingsLoading && settings) {
@@ -80,6 +81,7 @@ const Settings = () => {
   }, [activeTab, fetchNotificationData]);
 
   const handleSendReminders = async () => {
+    setShowReminderConfirm(false);
     setSendingReminders(true);
     try {
       const result = await reminderService.sendBatch();
@@ -225,8 +227,6 @@ const Settings = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Select label="Devise par défaut" value={billing.currency} onChange={(e) => setBilling({ ...billing, currency: e.target.value })}>
                 <option value="MAD">MAD - Dirham Marocain</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="USD">USD - Dollar US</option>
               </Select>
               <Input label="TVA par défaut (%)" type="number" value={billing.vatRate} onChange={(e) => setBilling({ ...billing, vatRate: e.target.value })} />
               <Input label="Format Numéro" value={billing.invoiceFormat} onChange={(e) => setBilling({ ...billing, invoiceFormat: e.target.value })} />
@@ -308,7 +308,7 @@ const Settings = () => {
                       </h4>
                       <Button 
                         size="sm" 
-                        onClick={handleSendReminders}
+                        onClick={() => setShowReminderConfirm(true)}
                         loading={sendingReminders}
                         disabled={upcomingReminders.length === 0}
                       >
@@ -452,6 +452,47 @@ const Settings = () => {
             {saveMessage.text}
           </p>
         )}
+
+        <Modal isOpen={showReminderConfirm} onClose={() => setShowReminderConfirm(false)} title="Confirmer l'envoi des rappels">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <FiAlertTriangle className="text-amber-500 text-xl flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Cette action est irréversible
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  {upcomingReminders.length} rappel(s) seront marqués comme envoyés. Cette action ne peut pas être annulée.
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Les rappels suivants seront envoyés :
+            </p>
+            <ul className="text-sm text-slate-500 dark:text-slate-400 space-y-1 max-h-40 overflow-y-auto">
+              {upcomingReminders.slice(0, 5).map((reminder) => (
+                <li key={reminder._id} className="flex justify-between">
+                  <span>{reminder.clientId?.companyName || 'Client'}</span>
+                  <span className="text-slate-400">{formatDate(reminder.scheduledDate)}</span>
+                </li>
+              ))}
+              {upcomingReminders.length > 5 && (
+                <li className="text-slate-400 italic">
+                  ...et {upcomingReminders.length - 5} autre(s)
+                </li>
+              )}
+            </ul>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="secondary" onClick={() => setShowReminderConfirm(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleSendReminders} loading={sendingReminders}>
+                <FiSend className="text-sm" />
+                Confirmer l'envoi
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </PageLayout>
   );

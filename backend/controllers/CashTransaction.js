@@ -186,7 +186,25 @@ const getSummary = async (req, res) => {
       if (endDate) dateFilter.date.$lte = new Date(endDate + 'T23:59:59.999Z');
     }
 
-    const [cashTotals, bySource, recent, allPayments, allExpenses, linkedPaymentIds, linkedExpenseIds] = await Promise.all([
+    let paymentDateFilter = {};
+    let expenseDateFilter = { status: { $ne: 'rejected' } };
+
+    if (startDate) {
+      paymentDateFilter.paidAt = { $gte: new Date(startDate) };
+      expenseDateFilter.date = { $gte: new Date(startDate) };
+    }
+    if (endDate) {
+      paymentDateFilter.paidAt = { ...paymentDateFilter.paidAt, $lte: new Date(endDate + 'T23:59:59.999Z') };
+      expenseDateFilter.date = { ...expenseDateFilter.date, $lte: new Date(endDate + 'T23:59:59.999Z') };
+    }
+
+    const [
+      cashTotals,
+      bySource,
+      recent,
+      unlinkedPaymentsAgg,
+      unlinkedExpensesAgg
+    ] = await Promise.all([
       CashTransaction.aggregate([
         { $match: { ...dateFilter, ...baseMatch } },
         { $group: { _id: '$type', total: { $sum: '$amount' }, count: { $sum: 1 } } }
@@ -205,43 +223,9 @@ const getSummary = async (req, res) => {
         .populate('linkedExpenseId', 'description')
         .sort({ date: -1 })
         .limit(5),
-      Payment.find(),
-      Expense.find({ status: { $ne: 'rejected' } }),
-      CashTransaction.distinct('sourceId', { source: 'invoice' }),
-      CashTransaction.distinct('sourceId', { source: 'expense' }),
+      Payment.aggregateWithPagination(paymentDateFilter),
+      Expense.aggregateWithPagination(expenseDateFilter)
     ]);
-
-    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString()).filter(Boolean);
-    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString()).filter(Boolean);
-
-    let unlinkedPaymentsTotal = 0;
-    let unlinkedPaymentsCount = 0;
-    let unlinkedExpensesTotal = 0;
-    let unlinkedExpensesCount = 0;
-
-    allPayments.forEach(p => {
-      if (!linkedPaymentIdStrings.includes(p._id.toString())) {
-        const paymentDate = new Date(p.paidAt);
-        const inDateRange = (!startDate || paymentDate >= new Date(startDate)) &&
-                          (!endDate || paymentDate <= new Date(endDate + 'T23:59:59.999Z'));
-        if (inDateRange) {
-          unlinkedPaymentsTotal += p.amount;
-          unlinkedPaymentsCount++;
-        }
-      }
-    });
-
-    allExpenses.forEach(e => {
-      if (!linkedExpenseIdStrings.includes(e._id.toString())) {
-        const expenseDate = new Date(e.date);
-        const inDateRange = (!startDate || expenseDate >= new Date(startDate)) &&
-                          (!endDate || expenseDate <= new Date(endDate + 'T23:59:59.999Z'));
-        if (inDateRange) {
-          unlinkedExpensesTotal += e.amount;
-          unlinkedExpensesCount++;
-        }
-      }
-    });
 
     const result = {
       balance: 0,
@@ -251,8 +235,8 @@ const getSummary = async (req, res) => {
       netCashFlow: 0,
       countIn: 0,
       countOut: 0,
-      unlinkedPayments: { count: unlinkedPaymentsCount, total: unlinkedPaymentsTotal },
-      unlinkedExpenses: { count: unlinkedExpensesCount, total: unlinkedExpensesTotal },
+      unlinkedPayments: { count: unlinkedPaymentsAgg.count, total: unlinkedPaymentsAgg.total },
+      unlinkedExpenses: { count: unlinkedExpensesAgg.count, total: unlinkedExpensesAgg.total },
       bySource: {},
       recent
     };
@@ -290,13 +274,35 @@ const getSummary = async (req, res) => {
 
 const reconcileTransactions = async (req, res) => {
   try {
+    const { startDate, endDate } = req.query;
+
     const linkedPaymentIds = await CashTransaction.distinct('sourceId', { source: 'invoice' });
     const linkedExpenseIds = await CashTransaction.distinct('sourceId', { source: 'expense' });
     const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString()).filter(Boolean);
     const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString()).filter(Boolean);
 
-    const allPayments = await Payment.find();
-    const allExpenses = await Expense.find({ status: { $ne: 'rejected' } });
+    let paymentFilter = {};
+    let expenseFilter = { status: { $ne: 'rejected' } };
+
+    if (startDate || endDate) {
+      if (startDate) {
+        paymentFilter.paidAt = { $gte: new Date(startDate) };
+        expenseFilter.date = { $gte: new Date(startDate) };
+      }
+      if (endDate) {
+        paymentFilter.paidAt = { 
+          ...paymentFilter.paidAt,
+          $lte: new Date(endDate + 'T23:59:59.999Z') 
+        };
+        expenseFilter.date = { 
+          ...expenseFilter.date,
+          $lte: new Date(endDate + 'T23:59:59.999Z') 
+        };
+      }
+    }
+
+    const allPayments = await Payment.find(paymentFilter);
+    const allExpenses = await Expense.find(expenseFilter);
 
     const missingPayments = allPayments.filter(p => !linkedPaymentIdStrings.includes(p._id.toString()));
     const missingExpenses = allExpenses.filter(e => !linkedExpenseIdStrings.includes(e._id.toString()));
@@ -304,7 +310,15 @@ const reconcileTransactions = async (req, res) => {
     const paymentTransactions = await Promise.all(missingPayments.map(async (payment) => {
       const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
       
-      const methodMap = { 'cache': 'cash', 'trait': 'traite', 'virement': 'virement', 'cheque': 'cheque', 'carte': 'carte' };
+      const methodMap = { 
+        'cache': 'cash', 
+        'especes': 'cash', 
+        'trait': 'traite',
+        'virement': 'virement', 
+        'cheque': 'cheque', 
+        'carte': 'carte',
+        'paypal': 'autre'
+      };
       const method = methodMap[payment.method] || 'cash';
       
       const description = invoice
@@ -364,7 +378,8 @@ const reconcileTransactions = async (req, res) => {
         createdForPayments: paymentTransactions.length, 
         createdForExpenses: expenseTransactions.length,
         totalPaymentAmount: paymentTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0),
-        totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0)
+        totalExpenseAmount: expenseTransactions.reduce((sum, t) => sum + (t?.amount || 0), 0),
+        dateFilter: { startDate, endDate }
       },
       req
     });

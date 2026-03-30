@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { notificationService } from '../../services/notificationService';
-import { FiSearch, FiBell, FiHelpCircle, FiMenu, FiCheck, FiX } from 'react-icons/fi';
+import { useTheme } from '../../context/ThemeContext';
+import { FiSearch, FiBell, FiHelpCircle, FiMenu, FiCheck, FiX, FiSun, FiMoon } from 'react-icons/fi';
 
 export const Header = ({ title, actions, onMenuClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -12,6 +13,7 @@ export const Header = ({ title, actions, onMenuClick }) => {
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     fetchNotifications();
@@ -167,8 +169,12 @@ export const Header = ({ title, actions, onMenuClick }) => {
           )}
         </div>
 
-        <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-          <FiHelpCircle />
+        <button
+          onClick={toggleTheme}
+          className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+          title={isDark ? 'Mode clair' : 'Mode sombre'}
+        >
+          {isDark ? <FiSun className="text-lg" /> : <FiMoon className="text-lg" />}
         </button>
 
         {actions}

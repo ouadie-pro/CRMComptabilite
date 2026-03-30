@@ -121,6 +121,13 @@ const createPayment = async (req, res) => {
 
 const updatePayment = async (req, res) => {
   try {
+    const existingPayment = await Payment.findById(req.params.id);
+    if (!existingPayment) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    const amountChanged = existingPayment.amount !== req.body.amount;
+
     const payment = await Payment.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -129,14 +136,13 @@ const updatePayment = async (req, res) => {
       .populate('clientId', 'companyName email')
       .populate('invoiceId', 'number totalTTC clientId');
     
-    if (!payment) {
-      return res.status(404).json({ message: 'Payment not found' });
-    }
-    
     await updateInvoicePaymentTotals(payment.invoiceId);
-    const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
-    const userId = req.user?._id || req.user?.id || null;
-    await CashTransaction.createFromPayment(payment, invoice, userId);
+    
+    if (amountChanged) {
+      const invoice = await Invoice.findById(payment.invoiceId).populate('clientId', 'companyName');
+      const userId = req.user?._id || req.user?.id || null;
+      await CashTransaction.createFromPayment(payment, invoice, userId);
+    }
     
     res.status(200).json({ message: 'Payment updated successfully', payment });
   } catch (error) {

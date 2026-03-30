@@ -121,18 +121,37 @@ export const DataTable = ({
             >
               <FiChevronLeft className="text-sm" />
             </button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => pagination.onPageChange(page)}
-                className={`px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-medium ${
-                  page === pagination.page
-                    ? 'bg-primary text-white'
-                    : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                {page}
-              </button>
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).reduce((pages, page) => {
+              const current = pages[pages.length - 1];
+              const showPage = 
+                page === 1 || 
+                page === pagination.totalPages || 
+                (page >= pagination.page - 1 && page <= pagination.page + 1);
+              
+              if (showPage) {
+                if (current && page - current.value > 1) {
+                  pages.push({ value: '...', disabled: true, ellipsis: true });
+                }
+                pages.push({ value: page, disabled: false });
+              }
+              return pages;
+            }, []).map((page, idx) => (
+              page.ellipsis ? (
+                <span key={`ellipsis-${idx}`} className="px-2 py-1 text-slate-400">...</span>
+              ) : (
+                <button
+                  key={page.value}
+                  onClick={() => pagination.onPageChange(page.value)}
+                  disabled={page.disabled}
+                  className={`px-2 md:px-3 py-1 rounded-lg text-xs md:text-sm font-medium ${
+                    page.value === pagination.page
+                      ? 'bg-primary text-white'
+                      : 'border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {page.value}
+                </button>
+              )
             ))}
             <button
               onClick={() => pagination.onPageChange(pagination.page + 1)}

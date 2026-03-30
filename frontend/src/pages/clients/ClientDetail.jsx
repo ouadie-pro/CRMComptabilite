@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
-import { Card, Badge, Button, Loading } from '../../components/ui';
+import { Card, Badge, Button, Loading, Modal, Input, Select } from '../../components/ui';
 import { clientService, invoiceService, interactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -9,6 +9,7 @@ import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone,
 
 const ClientDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { billing } = useSettings();
   const currency = billing?.currency || 'MAD';
   const [client, setClient] = useState(null);
@@ -17,6 +18,9 @@ const ClientDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('invoices');
   const [deleting, setDeleting] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const handleDeleteInvoice = async (invoiceId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) return;
@@ -44,6 +48,41 @@ const ClientDetail = () => {
       alert('Erreur lors de la suppression');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleEditClick = () => {
+    setEditFormData({
+      companyName: client.companyName || '',
+      contactName: client.contactName || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      address: client.address || '',
+      city: client.city || '',
+      country: client.country || '',
+      ice: client.ice || '',
+      status: client.status === 'actif' ? 'active' : 'inactive',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        ...editFormData,
+        status: editFormData.status === 'active' ? 'actif' : 'inactif',
+      };
+      await clientService.update(id, payload);
+      const updatedClient = await clientService.getById(id);
+      setClient(updatedClient.data || updatedClient);
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Error updating client:', error);
+      alert('Erreur lors de la modification');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -93,13 +132,9 @@ const ClientDetail = () => {
       title={client.companyName}
       actions={
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleEditClick}>
             <FiEdit2 className="text-sm" />
             Modifier
-          </Button>
-          <Button>
-            <FiPlusCircle className="text-sm" />
-            Nouveau Devis
           </Button>
         </div>
       }
@@ -242,6 +277,72 @@ const ClientDetail = () => {
           </Card>
         )}
       </div>
+
+      <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier le client" size="lg">
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Nom de l'entreprise"
+              value={editFormData.companyName || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, companyName: e.target.value })}
+              required
+            />
+            <Input
+              label="Nom du contact"
+              value={editFormData.contactName || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, contactName: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Email"
+              type="email"
+              value={editFormData.email || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+              required
+            />
+            <Input
+              label="Téléphone"
+              value={editFormData.phone || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+            />
+          </div>
+          <Input
+            label="Adresse"
+            value={editFormData.address || ''}
+            onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              label="Ville"
+              value={editFormData.city || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+            />
+            <Input
+              label="Pays"
+              value={editFormData.country || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, country: e.target.value })}
+            />
+            <Input
+              label="ICE"
+              value={editFormData.ice || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, ice: e.target.value })}
+            />
+          </div>
+          <Select
+            label="Statut"
+            value={editFormData.status || 'active'}
+            onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+          >
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+          </Select>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setShowEditModal(false)}>Annuler</Button>
+            <Button type="submit" loading={saving}>Enregistrer</Button>
+          </div>
+        </form>
+      </Modal>
     </PageLayout>
   );
 };

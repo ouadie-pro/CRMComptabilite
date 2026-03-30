@@ -139,7 +139,11 @@ const Clients = () => {
 
   useEffect(() => {
     fetchClients();
-  }, [pagination.page, search, statusFilter]);
+  }, [search, statusFilter]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [pagination.page]);
 
   const handleCreate = () => {
     setEditingClient(null);
