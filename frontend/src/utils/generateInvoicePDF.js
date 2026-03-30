@@ -315,7 +315,7 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
       doc.setTextColor(150, 150, 150);
       doc.text(
         `Page ${data.pageNumber}`,
-        pageWidth / 2,
+        pageWidth -2,
         pageHeight - 8,
         { align: 'center' }
       );
