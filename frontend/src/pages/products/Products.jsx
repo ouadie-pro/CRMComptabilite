@@ -6,6 +6,9 @@ import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency } from '../../utils/formatters';
 import { FiEdit2, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
 
+const statusBackendToForm = { 'actif': 'active', 'inactif': 'inactive' };
+const statusFormToBackend = { 'active': 'actif', 'inactive': 'inactif' };
+
 const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
   const { billing } = useSettings();
   const defaultVatRate = billing?.vatRate || 20;
@@ -19,7 +22,7 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
     cost: product?.cost || '',
     vatRate: product?.vatRate || defaultVatRate,
     unit: product?.unit || 'unit',
-    status: product?.status || 'active',
+    status: statusBackendToForm[product?.status] || 'active',
   });
 
   const handleChange = (e) => {
@@ -194,6 +197,7 @@ const Products = () => {
         ...data,
         category: categorySubmitMap[data.category] || data.category,
         priceHT: data.price,
+        status: statusFormToBackend[data.status] || data.status,
       };
       if (editingProduct) {
         await productService.update(editingProduct._id, payload);
