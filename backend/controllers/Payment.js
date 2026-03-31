@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Payment = require('../models/PaymentSchema');
 const Invoice = require('../models/InvoiceSchema');
 const CashTransaction = require('../models/CashTransactionSchema');
@@ -29,22 +30,34 @@ const getAllPayments = async (req, res) => {
     const { clientId, invoiceId, method } = req.query;
     let query = {};
 
-    console.log('[Payment] getAllPayments - raw query params:', { clientId, invoiceId, method });
+    console.log('[Payment] getAllPayments - req.query:', req.query);
+    console.log('[Payment] invoiceId from req.query:', invoiceId, 'type:', typeof invoiceId);
+    console.log('[Payment] clientId from req.query:', clientId, 'type:', typeof clientId);
 
     if (clientId) {
       query.clientId = clientId;
     }
     if (invoiceId) {
-      query.invoiceId = invoiceId;
-      console.log('[Payment] Querying by invoiceId:', invoiceId);
+      let normalizedInvoiceId = invoiceId;
+      if (typeof invoiceId === 'string' && mongoose.Types.ObjectId.isValid(invoiceId)) {
+        normalizedInvoiceId = new mongoose.Types.ObjectId(invoiceId);
+      }
+      query.invoiceId = normalizedInvoiceId;
+      console.log('[Payment] Querying by normalized invoiceId:', normalizedInvoiceId);
     }
     if (method) query.method = method;
 
-    console.log('[Payment] getAllPayments - built query:', query);
+    console.log('[Payment] getAllPayments - final query:', query);
 
-    // First, let's check ALL payments exist
+    // Check ALL payments in DB
     const allPaymentsCount = await Payment.countDocuments();
     console.log('[Payment] Total payments in DB:', allPaymentsCount);
+
+    // Log all payments to see their invoiceId values
+    if (allPaymentsCount > 0) {
+      const allPayments = await Payment.find().limit(10).select('invoiceId amount');
+      console.log('[Payment] Sample payments from DB:', JSON.stringify(allPayments, null, 2));
+    }
 
     const payments = await Payment.find(query)
       .populate('clientId', 'companyName email')

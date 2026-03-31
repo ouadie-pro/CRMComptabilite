@@ -32,14 +32,28 @@ const updateSettings = async (req, res) => {
 
 const testSmtp = async (req, res) => {
   try {
-    const { smtpHost } = req.body;
+    const { smtpHost, smtpPort, smtpUser, smtpPass, smtpSecure } = req.body;
     if (!smtpHost) {
       return res.json({ success: false, message: 'Adresse SMTP non fournie' });
     }
+    
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort || 587,
+      secure: smtpSecure || false,
+      auth: smtpUser ? {
+        user: smtpUser,
+        pass: smtpPass,
+      } : undefined,
+      connectionTimeout: 5000,
+    });
+    
+    await transporter.verify();
     res.json({ success: true, message: 'Connexion réussie' });
   } catch (error) {
     console.error('SMTP test error:', error);
-    res.json({ success: false, message: 'Échec de connexion' });
+    res.json({ success: false, message: 'Échec de connexion: ' + error.message });
   }
 };
 

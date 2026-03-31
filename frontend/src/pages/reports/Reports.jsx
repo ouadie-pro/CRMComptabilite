@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { PageLayout } from '../../components/layout';
 import { Card, Button, Loading, Badge } from '../../components/ui';
-import { invoiceService, clientService, expenseService, cashTransactionService } from '../../services';
+import { invoiceService, clientService, expenseService, cashTransactionService, budgetService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase, FiDownload, FiCalendar, FiFilter, FiFileText } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase, FiDownload, FiCalendar, FiFilter, FiFileText, FiTarget } from 'react-icons/fi';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -54,6 +54,11 @@ const Reports = () => {
   
   const [dateRange, setDateRange] = useState(getDefaultDateRange);
   const [exporting, setExporting] = useState(false);
+  const [agingData, setAgingData] = useState([]);
+  const [budgetData, setBudgetData] = useState(null);
+  const [budgetYear, setBudgetYear] = useState(new Date().getFullYear());
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState(null);
   const reportRef = useRef(null);
 
   const fetchReportsData = useCallback(async () => {
@@ -73,7 +78,7 @@ const Reports = () => {
       let allInvoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes.data || []);
       let allClients = Array.isArray(clientsRes) ? clientsRes : (clientsRes.data || []);
       let allExpenses = Array.isArray(expensesRes) ? expensesRes : (expensesRes.data || []);
-      const cashData = chartRes.data || chartRes || [];
+
 
       if (dateRange.start || dateRange.end) {
         const startDate = dateRange.start ? new Date(dateRange.start) : new Date(0);
@@ -209,12 +214,52 @@ const Reports = () => {
       ].sort((a, b) => b.rawDate - a.rawDate).slice(0, 8);
 
       setRecentTransactions(transactions);
+
+      const overdueInvoices = allInvoices.filter(inv => 
+        inv.status === 'envoyé' || inv.status === 'en_retard'
+      ).map(inv => {
+        const dueDate = new Date(inv.dueDate || inv.issueDate);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        let agingBucket = '0-30 jours';
+        if (daysOverdue > 90) agingBucket = '90+ jours';
+        else if (daysOverdue > 60) agingBucket = '61-90 jours';
+        else if (daysOverdue > 30) agingBucket = '31-60 jours';
+        else if (daysOverdue > 0) agingBucket = '1-30 jours';
+        
+        return {
+          ...inv,
+          daysOverdue: Math.max(0, daysOverdue),
+          agingBucket,
+        };
+      });
+      
+      const agingBuckets = {
+        '0-30 jours': [],
+        '31-60 jours': [],
+        '61-90 jours': [],
+        '90+ jours': [],
+      };
+      overdueInvoices.forEach(inv => {
+        if (agingBuckets[inv.agingBucket]) {
+          agingBuckets[inv.agingBucket].push(inv);
+        }
+      });
+      
+      setAgingData(Object.entries(agingBuckets).map(([bucket, invoices]) => ({
+        bucket,
+        count: invoices.length,
+        total: invoices.reduce((sum, inv) => sum + (inv.totalTTC || 0), 0),
+      })));
+
+      const budgetRes = await budgetService.getSummary({ year: budgetYear });
+      setBudgetData(budgetRes);
     } catch (error) {
       console.error('Error fetching reports data:', error);
     } finally {
       setLoading(false);
     }
-  }, [activeFilter, dateRange.start, dateRange.end]);
+  }, [activeFilter, dateRange.start, dateRange.end, budgetYear]);
 
   useEffect(() => {
     fetchReportsData();
@@ -565,6 +610,110 @@ const Reports = () => {
           )}
         </Card>
 
+        <Card title="Échéancier des Factures Impayées">
+          {agingData.length === 0 || agingData.every(d => d.count === 0) ? (
+            <p className="text-slate-500 text-center py-8">Aucune facture impayée</p>
+          ) : (
+            <div className="space-y-4">
+              {agingData.map((item, index) => {
+                const colors = {
+                  '0-30 jours': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                  '31-60 jours': 'bg-amber-100 text-amber-700 border-amber-200',
+                  '61-90 jours': 'bg-orange-100 text-orange-700 border-orange-200',
+                  '90+ jours': 'bg-red-100 text-red-700 border-red-200',
+                };
+                return (
+                  <div key={index} className={`p-4 rounded-lg border ${colors[item.bucket] || 'bg-slate-100'}`}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold">{item.bucket}</p>
+                        <p className="text-sm opacity-75">{item.count} facture{item.count !== 1 ? 's' : ''}</p>
+                      </div>
+                      <p className="text-xl font-bold">{formatCurrency(item.total, currency)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card 
+          title={
+            <div className="flex items-center justify-between w-full">
+              <span className="flex items-center gap-2">
+                <FiTarget className="text-primary" />
+                Suivi des Budgets
+              </span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={budgetYear}
+                  onChange={(e) => setBudgetYear(parseInt(e.target.value))}
+                  className="text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+                >
+                  {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <Button size="sm" variant="secondary" onClick={() => { setEditingBudget(null); setShowBudgetModal(true); }}>
+                  + Définir Budget
+                </Button>
+              </div>
+            </div>
+          }
+        >
+          {!budgetData?.categories?.length ? (
+            <p className="text-slate-500 text-center py-8">Aucun budget défini pour {budgetYear}</p>
+          ) : (
+            <div className="space-y-4">
+              {budgetData.categories.map((cat, index) => {
+                const pct = cat.percentage || 0;
+                const isOverBudget = pct >= 100;
+                const isWarning = pct >= 80 && pct < 100;
+                return (
+                  <div key={index} className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-medium capitalize">{cat.category}</span>
+                      <div className="text-sm">
+                        <span className={isOverBudget ? 'text-red-600 font-semibold' : ''}>
+                          {formatCurrency(cat.spent, currency)}
+                        </span>
+                        <span className="text-slate-400 mx-1">/</span>
+                        <span className="text-slate-500">{formatCurrency(cat.budgeted, currency)}</span>
+                        <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded ${
+                          isOverBudget ? 'bg-red-100 text-red-700' : isWarning ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {pct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all ${
+                          isOverBudget ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {budgetData.totals && (
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-700 mt-4">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-semibold">Total Budget vs Dépensé</span>
+                    <span>
+                      <span className="font-semibold">{formatCurrency(budgetData.totals.spent, currency)}</span>
+                      <span className="text-slate-400 mx-1">/</span>
+                      <span>{formatCurrency(budgetData.totals.budgeted, currency)}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
         <Card title="Dernières Transactions">
           <div className="space-y-4">
             {recentTransactions.length === 0 ? (
@@ -599,7 +748,82 @@ const Reports = () => {
           </div>
         </Card>
       </div>
+
+      {showBudgetModal && (
+        <BudgetModal 
+          onClose={() => setShowBudgetModal(false)} 
+          onSave={() => { setShowBudgetModal(false); fetchReportsData(); }}
+          editingBudget={editingBudget}
+        />
+      )}
     </PageLayout>
+  );
+};
+
+const BudgetModal = ({ onClose, onSave, editingBudget }) => {
+  const [category, setCategory] = useState(editingBudget?.category || '');
+  const [amount, setAmount] = useState(editingBudget?.amount || '');
+  const [saving, setSaving] = useState(false);
+
+  const categories = ['fournitures', 'location', 'salaires', 'utilities', 'marketing', 'transport', 'assurance', 'autre'];
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!category || !amount) return;
+    setSaving(true);
+    try {
+      await budgetService.set({
+        category,
+        amount: parseFloat(amount),
+        year: new Date().getFullYear()
+      });
+      onSave();
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      alert('Erreur lors de la sauvegarde du budget');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold mb-4">Définir Budget</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Catégorie</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-800"
+              required
+            >
+              <option value="">Sélectionner...</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Montant (MAD)</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-800"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="submit" loading={saving}>Enregistrer</Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 

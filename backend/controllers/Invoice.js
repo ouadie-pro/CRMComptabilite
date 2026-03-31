@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Invoice = require('../models/InvoiceSchema');
 const Payment = require('../models/PaymentSchema');
 const CashTransaction = require('../models/CashTransactionSchema');
@@ -311,6 +312,14 @@ const sendInvoiceEmail = async (req, res) => {
     const { id } = req.params;
     const { recipientEmail, subject, message } = req.body;
     
+    console.log('[sendInvoiceEmail] id:', id, 'type:', typeof id);
+    console.log('[sendInvoiceEmail] body:', { recipientEmail, subject, message: message ? 'provided' : 'empty' });
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log('[sendInvoiceEmail] Invalid ObjectId:', id);
+      return res.status(400).json({ message: 'ID de facture invalide' });
+    }
+    
     const invoice = await Invoice.findById(id)
       .populate('clientId', 'companyName email phone address ice');
     
@@ -321,10 +330,28 @@ const sendInvoiceEmail = async (req, res) => {
     const settings = await Settings.findOne();
     const notif = settings?.notifications || {};
     
-    if (!notif.smtpHost || !notif.smtpUser) {
-      return res.status(400).json({ message: 'Configuration SMTP incomplète. Veuillez configurer les paramètres email dans les paramètres.' });
+    console.log('[sendInvoiceEmail] SMTP settings:', {
+      smtpHost: notif.smtpHost ? 'set' : 'empty',
+      smtpUser: notif.smtpUser ? 'set' : 'empty',
+      smtpPort: notif.smtpPort,
+      smtpSecure: notif.smtpSecure,
+      hasSmtpPass: !!notif.smtpPass
+    });
+    
+    if (!notif.smtpHost || !notif.smtpUser || !notif.smtpPass) {
+      return res.status(400).json({ 
+        message: 'Configuration SMTP incomplète. Veuillez configurer les paramètres email dans les paramètres.',
+        details: 'Paramètres SMTP manquants: host, utilisateur ou mot de passe'
+      });
     }
     
+    const clientName = invoice.clientId?.companyName || 'Client';
+    const clientEmail = recipientEmail || invoice.clientId?.email;
+    
+    if (!clientEmail) {
+      return res.status(400).json({ message: 'Email du client non disponible. Veuillez vérifier que le client a une adresse email enregistrée.' });
+    }
+
     const transporter = nodemailer.createTransport({
       host: notif.smtpHost,
       port: notif.smtpPort || 587,
@@ -334,13 +361,6 @@ const sendInvoiceEmail = async (req, res) => {
         pass: notif.smtpPass,
       },
     });
-    
-    const clientName = invoice.clientId?.companyName || 'Client';
-    const clientEmail = recipientEmail || invoice.clientId?.email;
-    
-    if (!clientEmail) {
-      return res.status(400).json({ message: 'Email du client non disponible' });
-    }
     
     const formatCurrency = (amount) => {
       return new Intl.NumberFormat('fr-FR', {

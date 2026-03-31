@@ -4,7 +4,8 @@ import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../c
 import { expenseService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiEdit2, FiPlus, FiTrash2, FiCheckSquare, FiSquare, FiCheckCircle } from 'react-icons/fi';
+import { FiEdit2, FiPlus, FiTrash2, FiCheckSquare, FiSquare, FiCheckCircle, FiPaperclip, FiDownload } from 'react-icons/fi';
+import api from '../../services/api';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
   const { billing } = useSettings();
@@ -197,6 +198,20 @@ const Expenses = () => {
 
   const statusLabels = { pending: 'En attente', approved: 'Approuvé', rejected: 'Rejeté' };
 
+  const handleAttachmentUpload = async (expenseId, file) => {
+    const formData = new FormData();
+    formData.append('receipt', file);
+    try {
+      await api.post(`/expenses/upload/${expenseId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error uploading attachment:', error);
+      alert('Erreur lors de l\'upload du justificatif');
+    }
+  };
+
   const columns = [
     { key: 'select', header: '', width: '50px', render: (row) => (
       row.status === 'pending' ? (
@@ -213,6 +228,21 @@ const Expenses = () => {
     { key: 'category', header: 'Catégorie', render: (row) => <Badge>{row.category}</Badge> },
     { key: 'vendor', header: 'Fournisseur' },
     { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0, billing?.currency || 'MAD') },
+    { key: 'attachment', header: 'Justificatif', width: '80px', render: (row) => (
+      <div className="flex items-center gap-1">
+        {row.attachmentUrl ? (
+          <a href={row.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs flex items-center gap-1">
+            <FiPaperclip className="text-sm" />
+            <FiDownload className="text-xs" />
+          </a>
+        ) : (
+          <label className="cursor-pointer text-slate-400 hover:text-primary">
+            <FiPaperclip className="text-sm" />
+            <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onChange={(e) => { if (e.target.files[0]) handleAttachmentUpload(row._id, e.target.files[0]); }} />
+          </label>
+        )}
+      </div>
+    )},
     { key: 'status', header: 'Statut', render: (row) => <Badge variant={row.status === 'approved' ? 'success' : row.status === 'rejected' ? 'danger' : 'warning'}>{statusLabels[row.status] || row.status}</Badge> },
     { key: 'actions', header: '', width: '120px', render: (row) => (
       <div className="flex gap-1">

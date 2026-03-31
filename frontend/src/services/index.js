@@ -302,6 +302,33 @@ export const companyService = {
   },
 };
 
+export const budgetService = {
+  getAll: async (params = {}) => {
+    const response = await api.get('/budgets', { params });
+    return response.data;
+  },
+
+  getSummary: async (params = {}) => {
+    const response = await api.get('/budgets/summary', { params });
+    return response.data;
+  },
+
+  getByCategory: async (category, params = {}) => {
+    const response = await api.get(`/budgets/category/${category}`, { params });
+    return response.data;
+  },
+
+  set: async (data) => {
+    const response = await api.post('/budgets', data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/budgets/${id}`);
+    return response.data;
+  },
+};
+
 export const cashTransactionService = {
   getAll: async (params = {}) => {
     const response = await api.get('/cash-transactions', { params });

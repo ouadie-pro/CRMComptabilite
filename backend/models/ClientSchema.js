@@ -38,6 +38,14 @@ const clientSchema = new mongoose.Schema({
         enum: ["actif", "nouveau", "en_retard", "archivé"],
         default: "nouveau"
     },
+    creditLimit: {
+        type: Number,
+        default: 0
+    },
+    paymentTerms: {
+        type: Number,
+        default: 30
+    },
     totalBilled : {
         type: Number,
         default: 0

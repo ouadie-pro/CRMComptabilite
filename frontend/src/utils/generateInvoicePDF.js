@@ -164,7 +164,7 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
   doc.setTextColor(...primaryColor);
 
   const clientBoxWidth = 85;
-  const clientBoxHeight = 45;
+  const clientBoxHeight = 55;
   
   doc.setFillColor(...lightGray);
   doc.setDrawColor(...borderColor);
@@ -185,17 +185,26 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   
+  let detailLine = currentY + 22;
   if (invoice.clientId?.contactName) {
-    doc.text(truncateText(invoice.clientId.contactName, 38), margin + 5, currentY + 22);
+    doc.text(truncateText(invoice.clientId.contactName, 38), margin + 5, detailLine);
+    detailLine += 6;
   }
   if (invoice.clientId?.address) {
-    doc.text(truncateText(invoice.clientId.address, 38), margin + 5, currentY + 28);
+    doc.text(truncateText(invoice.clientId.address, 38), margin + 5, detailLine);
+    detailLine += 6;
   }
-  if (invoice.clientId?.city) {
-    doc.text(truncateText(invoice.clientId.city, 38), margin + 5, currentY + 34);
+  const cityLine = [invoice.clientId?.city, invoice.clientId?.country].filter(Boolean).join(', ');
+  if (cityLine) {
+    doc.text(truncateText(cityLine, 38), margin + 5, detailLine);
+    detailLine += 6;
+  }
+  if (invoice.clientId?.phone) {
+    doc.text(`Tél: ${invoice.clientId.phone}`, margin + 5, detailLine);
+    detailLine += 6;
   }
   if (invoice.clientId?.ice) {
-    doc.text(`ICE: ${invoice.clientId.ice}`, margin + 5, currentY + 40);
+    doc.text(`ICE: ${invoice.clientId.ice}`, margin + 5, detailLine);
   }
 
   const detailsBoxX = pageWidth - margin - 80;

@@ -29,6 +29,16 @@ const productSchema = new mongoose.Schema({
     default: 20
   },
 
+  stockQuantity: {
+    type: Number,
+    default: 0
+  },
+
+  trackStock: {
+    type: Boolean,
+    default: false
+  },
+
   status: {
     type: String,
     enum: ["actif", "inactif"],

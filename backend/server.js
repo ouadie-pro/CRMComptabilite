@@ -34,6 +34,7 @@ app.use('/api/audit-logs', require('./routers/auditLog'));
 app.use('/api/cash-transactions', require('./routers/cashTransaction'));
 app.use('/api/settings', require('./routers/settings'));
 app.use('/api/notifications', require('./routers/notification'));
+app.use('/api/budgets', require('./routers/budget'));
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

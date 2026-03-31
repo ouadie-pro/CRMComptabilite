@@ -4,7 +4,7 @@ import { PageLayout } from '../../components/layout';
 import { Button, Input, Select, DataTable, Modal, Badge, Loading, EmptyState } from '../../components/ui';
 import { clientService } from '../../services';
 import { formatDate, formatCurrency, getInitials } from '../../utils/formatters';
-import { FiEdit2, FiEye, FiUserPlus, FiSearch } from 'react-icons/fi';
+import { FiEdit2, FiEye, FiUserPlus, FiSearch, FiCheckSquare, FiSquare, FiDownload, FiTrash2, FiToggleLeft } from 'react-icons/fi';
 
 const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
@@ -16,6 +16,8 @@ const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
     country: client?.country || '',
     ice: client?.ice || '',
     status: (client?.status === 'actif' || !client) ? 'active' : 'inactive',
+    creditLimit: client?.creditLimit || '',
+    paymentTerms: client?.paymentTerms || '30',
   });
 
   const handleChange = (e) => {
@@ -78,6 +80,29 @@ const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
           onChange={handleChange}
         />
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Input
+          label="Limite de crédit (MAD)"
+          name="creditLimit"
+          type="number"
+          value={formData.creditLimit}
+          onChange={handleChange}
+          placeholder="0.00"
+        />
+        <Select
+          label="Conditions de paiement (jours)"
+          name="paymentTerms"
+          value={formData.paymentTerms}
+          onChange={handleChange}
+        >
+          <option value="7">7 jours</option>
+          <option value="15">15 jours</option>
+          <option value="30">30 jours</option>
+          <option value="45">45 jours</option>
+          <option value="60">60 jours</option>
+          <option value="90">90 jours</option>
+        </Select>
+      </div>
       <Select
         label="Statut"
         name="status"
@@ -111,6 +136,8 @@ const Clients = () => {
     total: 0,
     totalPages: 0,
   });
+  const [selectedClients, setSelectedClients] = useState([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const statusFilterMap = {
     active: 'actif',
@@ -171,6 +198,8 @@ const Clients = () => {
         country: data.country,
         ice: data.ice,
         status: data.status === 'active' ? 'actif' : 'inactif',
+        creditLimit: parseFloat(data.creditLimit) || 0,
+        paymentTerms: parseInt(data.paymentTerms) || 30,
       };
       if (editingClient) {
         await clientService.update(editingClient._id, payload);
@@ -187,7 +216,97 @@ const Clients = () => {
     }
   };
 
+  const toggleSelectClient = (clientId) => {
+    setSelectedClients(prev => 
+      prev.includes(clientId) 
+        ? prev.filter(id => id !== clientId)
+        : [...prev, clientId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedClients.length === clients.length) {
+      setSelectedClients([]);
+    } else {
+      setSelectedClients(clients.map(c => c._id));
+    }
+  };
+
+  const handleBulkStatusChange = async (newStatus) => {
+    if (selectedClients.length === 0) {
+      alert('Veuillez sélectionner au moins un client');
+      return;
+    }
+    setBulkActionLoading(true);
+    try {
+      const status = newStatus === 'active' ? 'actif' : 'inactif';
+      await Promise.all(selectedClients.map(id => 
+        clientService.update(id, { status })
+      ));
+      setSelectedClients([]);
+      fetchClients();
+    } catch (error) {
+      console.error('Error updating clients:', error);
+      alert('Erreur lors de la mise à jour');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedClients.length === 0) {
+      alert('Veuillez sélectionner au moins un client');
+      return;
+    }
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer ${selectedClients.length} client(s) ?`)) return;
+    setBulkActionLoading(true);
+    try {
+      await Promise.all(selectedClients.map(id => 
+        clientService.delete(id)
+      ));
+      setSelectedClients([]);
+      fetchClients();
+    } catch (error) {
+      console.error('Error deleting clients:', error);
+      alert('Erreur lors de la suppression');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleExportClients = () => {
+    const selectedData = selectedClients.length > 0 
+      ? clients.filter(c => selectedClients.includes(c._id))
+      : clients;
+    
+    const csvContent = [
+      ['Nom', 'Email', 'Téléphone', 'Ville', 'ICE', 'Statut', 'Total Facturé', 'Limite Crédit', 'Conditions Paiement'].join(','),
+      ...selectedData.map(c => [
+        `"${c.companyName}"`,
+        `"${c.email}"`,
+        `"${c.phone || ''}"`,
+        `"${c.city || ''}"`,
+        `"${c.ice || ''}"`,
+        c.status === 'actif' ? 'Actif' : 'Inactif',
+        c.totalBilled || 0,
+        c.creditLimit || 0,
+        `${c.paymentTerms || 30} jours`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `clients_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
   const columns = [
+    { key: 'select', header: '', width: '50px', render: (row) => (
+      <button onClick={() => toggleSelectClient(row._id)} className="text-slate-400 hover:text-primary transition-colors">
+        {selectedClients.includes(row._id) ? <FiCheckSquare className="text-primary" /> : <FiSquare />}
+      </button>
+    )},
     {
       key: 'companyName',
       header: 'Nom',
@@ -274,6 +393,28 @@ const Clients = () => {
               <option value="inactive">Inactif</option>
             </Select>
           </div>
+          
+          {selectedClients.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-slate-500">{selectedClients.length} sélectionné(s)</span>
+              <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('active')} loading={bulkActionLoading}>
+                <FiToggleLeft className="text-sm mr-1" />
+                Activer
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => handleBulkStatusChange('inactive')} loading={bulkActionLoading}>
+                <FiToggleLeft className="text-sm mr-1" />
+                Désactiver
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleExportClients}>
+                <FiDownload className="text-sm mr-1" />
+                Exporter
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleBulkDelete} loading={bulkActionLoading}>
+                <FiTrash2 className="text-sm mr-1" />
+                Supprimer
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Table */}

@@ -42,7 +42,7 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, category, sku, ...rest } = req.body;
+    const { price, cost, unit, status, category, sku, stockQuantity, trackStock, ...rest } = req.body;
     
     const priceValue = parseFloat(price) || 0;
     if (priceValue <= 0) {
@@ -69,7 +69,9 @@ const createProduct = async (req, res) => {
       sku: finalSKU,
       priceHT: parseFloat(price) || 0,
       category: category ? (categoryMap[category] || category) : 'service',
-      status: status ? (statusMap[status] || status) : 'actif'
+      status: status ? (statusMap[status] || status) : 'actif',
+      stockQuantity: parseInt(stockQuantity) || 0,
+      trackStock: trackStock || false,
     };
     
     const product = new Product(productData);
@@ -98,7 +100,7 @@ const createProduct = async (req, res) => {
 
 const updateProduct = async (req, res) => {
   try {
-    const { price, cost, unit, status, category, sku, ...rest } = req.body;
+    const { price, cost, unit, status, category, sku, stockQuantity, trackStock, ...rest } = req.body;
     
     if (price !== undefined) {
       const priceValue = parseFloat(price) || 0;
@@ -122,7 +124,9 @@ const updateProduct = async (req, res) => {
       ...(sku !== undefined && { sku: sku.trim() }),
       ...(price !== undefined && { priceHT: parseFloat(price) || 0 }),
       ...(category && { category: categoryMap[category] || category }),
-      ...(status && { status: statusMap[status] || status })
+      ...(status && { status: statusMap[status] || status }),
+      ...(stockQuantity !== undefined && { stockQuantity: parseInt(stockQuantity) || 0 }),
+      ...(trackStock !== undefined && { trackStock }),
     };
     
     const product = await Product.findByIdAndUpdate(

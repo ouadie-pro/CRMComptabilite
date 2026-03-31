@@ -460,9 +460,10 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
                       onChange={(e) => setNewPayment({ ...newPayment, method: e.target.value })}
                     >
                       <option value="virement">Virement</option>
-                      <option value="cache">Espèces</option>
+                      <option value="especes">Espèces</option>
                       <option value="cheque">Chèque</option>
-                      <option value="trait">Traite</option>
+                      <option value="traite">Traite</option>
+                      <option value="carte">Carte</option>
                     </Select>
                   </div>
                   <div className="flex-1">
@@ -656,7 +657,8 @@ const Invoices = () => {
       fetchInvoices();
     } catch (error) {
       console.error('Error sending email:', error);
-      alert(error.response?.data?.message || 'Erreur lors de l\'envoi de l\'email');
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Erreur lors de l\'envoi de l\'email';
+      alert(errorMsg);
     } finally {
       setSendingEmail(false);
     }
@@ -719,9 +721,30 @@ const Invoices = () => {
     {
       key: 'actions',
       header: '',
-      width: '160px',
+      width: '200px',
       render: (row) => (
         <div className="flex items-center gap-1">
+          {row.status === 'brouillon' && (
+            <Button 
+              variant="primary" 
+              size="sm" 
+              onClick={async () => {
+                if (window.confirm('Finaliser et marquer comme envoyée ?')) {
+                  try {
+                    await invoiceService.update(row._id, { status: 'sent' });
+                    fetchInvoices();
+                  } catch (error) {
+                    console.error('Error finalizing invoice:', error);
+                    alert('Erreur lors de la finalisation');
+                  }
+                }
+              }}
+              title="Finaliser"
+              className="text-xs"
+            >
+              Finaliser
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => generatePDF(row)} disabled={pdfDownloading === row._id} title="Télécharger PDF">
             {pdfDownloading === row._id ? <Loading size="sm" /> : <FiDownload className="text-sm" />}
           </Button>

@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { PageLayout } from '../../components/layout';
 import { Card, Button, Input, Select, Loading, Badge, Modal } from '../../components/ui';
 import { useSettings } from '../../context/SettingsContext';
-import { reminderService, invoiceService } from '../../services';
+import { reminderService, invoiceService, expenseService } from '../../services';
 import { formatDate, formatCurrency } from '../../utils/formatters';
-import { FiCamera, FiMail, FiBell, FiAlertTriangle, FiCheckCircle, FiClock, FiSend, FiRefreshCw } from 'react-icons/fi';
+import { FiCamera, FiMail, FiBell, FiAlertTriangle, FiCheckCircle, FiClock, FiSend, FiRefreshCw, FiDatabase, FiDownload } from 'react-icons/fi';
 import api, { BACKEND_URL } from '../../services/api';
 
 const Settings = () => {
@@ -47,6 +47,7 @@ const Settings = () => {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
   const [showReminderConfirm, setShowReminderConfirm] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!settingsLoading && settings) {
@@ -145,6 +146,68 @@ const Settings = () => {
     }
   };
 
+  const handleExportData = async (type) => {
+    setExporting(true);
+    try {
+      const [clientsRes, invoicesRes, productsRes, expensesRes] = await Promise.all([
+        api.get('/clients', { params: { limit: 10000 } }),
+        invoiceService.getAll({ limit: 10000 }),
+        api.get('/products', { params: { limit: 10000 } }),
+        expenseService.getAll({ limit: 10000 }),
+      ]);
+
+      const clients = clientsRes.data?.data || clientsRes.data || [];
+      const invoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes.data || []);
+      const products = productsRes.data || [];
+      const expenses = Array.isArray(expensesRes) ? expensesRes : (expensesRes.data || []);
+
+      let data, filename;
+      
+      switch (type) {
+        case 'all':
+          data = { clients, invoices, products, expenses, exportedAt: new Date().toISOString() };
+          filename = `backup-${formatDate(new Date())}.json`;
+          break;
+        case 'clients':
+          data = clients;
+          filename = `clients-${formatDate(new Date())}.json`;
+          break;
+        case 'invoices':
+          data = invoices;
+          filename = `factures-${formatDate(new Date())}.json`;
+          break;
+        case 'products':
+          data = products;
+          filename = `produits-${formatDate(new Date())}.json`;
+          break;
+        case 'expenses':
+          data = expenses;
+          filename = `depenses-${formatDate(new Date())}.json`;
+          break;
+        default:
+          throw new Error('Type invalide');
+      }
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setSaveMessage({ type: 'success', text: 'Export terminé avec succès' });
+      setTimeout(() => setSaveMessage(null), 3000);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      setSaveMessage({ type: 'error', text: 'Erreur lors de l\'export' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const getReminderTypeLabel = (type) => {
     const labels = {
       payment: 'Paiement',
@@ -178,7 +241,7 @@ const Settings = () => {
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="border-b border-slate-200 dark:border-slate-800">
           <nav className="flex gap-8">
-            {['company', 'billing', 'notifications'].map((tab) => (
+            {['company', 'billing', 'notifications', 'backup'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -188,7 +251,7 @@ const Settings = () => {
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {tab === 'company' ? 'Infos Entreprise' : tab === 'billing' ? 'Facturation' : 'Notifications'}
+                {tab === 'company' ? 'Infos Entreprise' : tab === 'billing' ? 'Facturation' : tab === 'notifications' ? 'Notifications' : 'Sauvegarde'}
               </button>
             ))}
           </nav>
@@ -499,6 +562,132 @@ const Settings = () => {
                 Actualiser
               </Button>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'backup' && (
+          <div className="space-y-6">
+            <Card title="Export des Données">
+              <div className="space-y-6">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-start gap-3">
+                    <FiDatabase className="text-blue-500 text-xl flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-blue-800 dark:text-blue-200">Sauvegarde des données</p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                        Exportez vos données au format JSON pour une sauvegarde complète ou partielle. 
+                        Ces fichiers peuvent être utilisés pour archiver ou migrer vos données.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <FiDownload className="text-primary" />
+                      </div>
+                      <p className="font-medium">Sauvegarde complète</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Export de toutes les données (clients, factures, produits, dépenses)
+                    </p>
+                    <Button onClick={() => handleExportData('all')} loading={exporting} className="w-full">
+                      <FiDownload className="text-sm" />
+                      Exporter tout (JSON)
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <FiDatabase className="text-emerald-600" />
+                      </div>
+                      <p className="font-medium">Clients uniquement</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Export de la liste des clients avec leurs informations
+                    </p>
+                    <Button variant="secondary" onClick={() => handleExportData('clients')} loading={exporting} className="w-full">
+                      <FiDownload className="text-sm" />
+                      Exporter clients
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <FiDatabase className="text-blue-600" />
+                      </div>
+                      <p className="font-medium">Factures uniquement</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Export de toutes les factures et paiements
+                    </p>
+                    <Button variant="secondary" onClick={() => handleExportData('invoices')} loading={exporting} className="w-full">
+                      <FiDownload className="text-sm" />
+                      Exporter factures
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-amber-100 rounded-lg">
+                        <FiDatabase className="text-amber-600" />
+                      </div>
+                      <p className="font-medium">Produits uniquement</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Export du catalogue produits et services
+                    </p>
+                    <Button variant="secondary" onClick={() => handleExportData('products')} loading={exporting} className="w-full">
+                      <FiDownload className="text-sm" />
+                      Exporter produits
+                    </Button>
+                  </div>
+
+                  <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-red-100 rounded-lg">
+                        <FiDatabase className="text-red-600" />
+                      </div>
+                      <p className="font-medium">Dépenses uniquement</p>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Export de toutes les dépenses enregistrées
+                    </p>
+                    <Button variant="secondary" onClick={() => handleExportData('expenses')} loading={exporting} className="w-full">
+                      <FiDownload className="text-sm" />
+                      Exporter dépenses
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Avertissements">
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <FiAlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-800 dark:text-amber-200">Export régulier recommandé</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-300 mt-1">
+                      Nous vous recommandons d'exporter vos données régulièrement pour éviter toute perte.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <FiDatabase className="text-slate-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-slate-800 dark:text-slate-200">Format JSON</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                      Les exports sont au format JSON, compatible avec la plupart des outils et systèmes de migration.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 

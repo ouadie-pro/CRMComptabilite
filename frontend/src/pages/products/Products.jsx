@@ -17,19 +17,21 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
     name: product?.name || '',
     sku: product?.sku || '',
     description: product?.description || '',
-    category: product?.category || 'service',
-    price: product?.price || '',
+    category: product?.category === 'matériel' ? 'product' : product?.category === 'licence' ? 'license' : product?.category || 'service',
+    price: product?.price || product?.priceHT || '',
     cost: product?.cost || '',
     vatRate: product?.vatRate || defaultVatRate,
     unit: product?.unit || 'unit',
     status: statusBackendToForm[product?.status] || 'active',
+    stockQuantity: product?.stockQuantity || 0,
+    trackStock: product?.trackStock || false,
   });
 
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value,
+      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) || 0 : value),
     });
   };
 
@@ -79,8 +81,10 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
           name="price"
           type="number"
           step="0.01"
+          min="0.01"
           value={formData.price}
           onChange={handleChange}
+          required
         />
         <Input
           label="Coût"
@@ -119,6 +123,32 @@ const ProductForm = ({ product, onSubmit, onCancel, loading }) => {
           <option value="active">Actif</option>
           <option value="inactive">Inactif</option>
         </Select>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Input
+            label="Stock / Quantité"
+            name="stockQuantity"
+            type="number"
+            min="0"
+            value={formData.stockQuantity}
+            onChange={handleChange}
+            disabled={!formData.trackStock}
+          />
+        </div>
+        <div className="flex items-center gap-2 pt-6">
+          <input
+            type="checkbox"
+            id="trackStock"
+            name="trackStock"
+            checked={formData.trackStock}
+            onChange={handleChange}
+            className="rounded border-slate-300"
+          />
+          <label htmlFor="trackStock" className="text-sm text-slate-600 dark:text-slate-400">
+            Suivre le stock
+          </label>
+        </div>
       </div>
       <div className="flex justify-end gap-3 pt-4">
         <Button type="button" variant="secondary" onClick={onCancel}>Annuler</Button>
@@ -248,6 +278,15 @@ const Products = () => {
       key: 'priceHT',
       header: 'Prix HT',
       render: (row) => formatCurrency(row.priceHT || 0),
+    },
+    {
+      key: 'stockQuantity',
+      header: 'Stock',
+      render: (row) => row.trackStock ? (
+        <span className={row.stockQuantity <= 0 ? 'text-red-500 font-bold' : ''}>
+          {row.stockQuantity || 0}
+        </span>
+      ) : '-',
     },
     {
       key: 'vatRate',
