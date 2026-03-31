@@ -42,24 +42,24 @@ const cashTransactionSchema = new mongoose.Schema({
   },
   sourceId: {
     type: mongoose.Schema.Types.ObjectId,
-    sparse: true,
     index: true
   },
   linkedInvoiceId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Invoice',
-    sparse: true
+    index: true
   },
   linkedExpenseId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Expense',
-    sparse: true
+    index: true
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: false,
-    default: null
+    default: null,
+    index: true
   },
   status: {
     type: String,
@@ -73,10 +73,6 @@ const cashTransactionSchema = new mongoose.Schema({
 cashTransactionSchema.index({ date: -1 });
 cashTransactionSchema.index({ type: 1 });
 cashTransactionSchema.index({ source: 1 });
-cashTransactionSchema.index({ sourceId: 1 }, { sparse: true });
-cashTransactionSchema.index({ linkedInvoiceId: 1 }, { sparse: true });
-cashTransactionSchema.index({ linkedExpenseId: 1 }, { sparse: true });
-cashTransactionSchema.index({ userId: 1 });
 
 cashTransactionSchema.statics.findBySourceId = function(sourceId) {
   return this.findOne({ sourceId });

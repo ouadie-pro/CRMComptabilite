@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, useEffect, createContext as createReactContext } from 'react';
 import api from '../services/api';
+import { useAuth } from './AuthContext';
 
 const SettingsContext = createReactContext(null);
 
 export const SettingsProvider = ({ children }) => {
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState({
     company: {
       name: '',
@@ -41,8 +43,14 @@ export const SettingsProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (authLoading) return;
+    
+    if (isAuthenticated) {
+      fetchSettings();
+    } else {
+      setLoading(false);
+    }
+  }, [isAuthenticated, authLoading]);
 
   const updateSettings = (newSettings) => {
     setSettings(prev => ({ ...prev, ...newSettings }));

@@ -14,37 +14,8 @@ const Login = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const { login, isAuthenticated, loading: authLoading, user } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      const role = user?.role;
-      if (role === 'comptable') {
-        navigate('/comptable/dashboard');
-      } else {
-        navigate('/dashboard');
-      }
-    }
-  }, [isAuthenticated, authLoading, navigate, user]);
-
-  if (authLoading) {
-    return null;
-  }
-
-  if (isAuthenticated) {
-    const redirectPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
-    return (
-      <div className="relative flex min-h-screen w-full flex-col items-center justify-center p-4 bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <p className="text-slate-600 dark:text-slate-300 mb-4">Vous êtes déjà connecté</p>
-          <Button onClick={() => navigate(redirectPath)}>
-            Aller au tableau de bord
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
