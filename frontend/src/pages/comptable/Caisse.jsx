@@ -192,9 +192,9 @@ const TransactionDetailModal = ({ transaction, isOpen, onClose, currency }) => {
   );
 };
 
-const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) => {
+const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction, defaultType = 'out' }) => {
   const [formData, setFormData] = useState({
-    type: 'out',
+    type: defaultType,
     amount: '',
     method: 'cash',
     date: new Date().toISOString().split('T')[0],
@@ -215,15 +215,15 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
       });
     } else {
       setFormData({
-        type: 'out',
+        type: defaultType,
         amount: '',
         method: 'cash',
         date: new Date().toISOString().split('T')[0],
         description: '',
-        category: 'other',
+        category: defaultType === 'in' ? 'deposit' : 'other',
       });
     }
-  }, [editingTransaction, isOpen]);
+  }, [editingTransaction, isOpen, defaultType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -273,42 +273,55 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
     { value: 'autre', label: 'Autre' },
   ];
 
-  const categoryOptions = [
+  const categoryOptionsIn = [
+    { value: 'deposit', label: 'Dépôt' },
+    { value: 'sale', label: 'Vente' },
+    { value: 'service', label: 'Service' },
+    { value: 'adjustment', label: 'Ajustement' },
+    { value: 'refund', label: 'Remboursement' },
+    { value: 'other', label: 'Autre' },
+  ];
+
+  const categoryOptionsOut = [
     { value: 'withdrawal', label: 'Retrait' },
     { value: 'supply', label: 'Fourniture' },
     { value: 'salary', label: 'Salaire' },
     { value: 'rent', label: 'Loyer' },
     { value: 'utility', label: 'Charge' },
     { value: 'transport', label: 'Transport' },
-    { value: 'deposit', label: 'Dépôt' },
     { value: 'adjustment', label: 'Ajustement' },
     { value: 'refund', label: 'Remboursement' },
     { value: 'other', label: 'Autre' },
   ];
 
+  const categoryOptions = formData.type === 'in' ? categoryOptionsIn : categoryOptionsOut;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editingTransaction ? 'Modifier la transaction' : 'Nouvelle sortie de caisse'} size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={editingTransaction ? 'Modifier la transaction' : formData.type === 'in' ? 'Nouvelle entrée de caisse' : 'Nouvelle sortie de caisse'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
-          <FiAlertTriangle className="mt-0.5 flex-shrink-0" />
-          <span>Les entrées sont automatiquement créées depuis les paiements de factures. Utilisez ce formulaire uniquement pour les sorties ou ajustements manuels.</span>
-        </div>
+        {formData.type === 'out' && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
+            <FiAlertTriangle className="mt-0.5 flex-shrink-0" />
+            <span>Les entrées sont automatiquement créées depuis les paiements de factures. Utilisez ce formulaire uniquement pour les sorties ou ajustements manuels.</span>
+          </div>
+        )}
 
         <div>
           <div className="flex items-center gap-1">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Type</label>
-            <span title="Les entrees sont creees automatiquement depuis les paiements de factures" className="text-slate-400 cursor-help text-xs">?</span>
+            {formData.type === 'out' && (
+              <span title="Les entrees sont creees automatiquement depuis les paiements de factures" className="text-slate-400 cursor-help text-xs">?</span>
+            )}
           </div>
           <Select
             name="type"
             value={formData.type}
             onChange={handleChange}
             required
-            disabled
           >
+            <option value="in">Entrée</option>
             <option value="out">Sortie</option>
           </Select>
-          <p className="text-xs text-slate-500 mt-1">Les entrees sont creees automatiquement depuis les paiements de factures</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -376,9 +389,32 @@ const TransactionModal = ({ isOpen, onClose, onSuccess, editingTransaction }) =>
   );
 };
 
-const ReconcileModal = ({ isOpen, onClose, onSuccess }) => {
+const ReconcileModal = ({ isOpen, onClose, onSuccess, unlinkedData }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [step, setStep] = useState('intro');
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [unlinkedItems, setUnlinkedItems] = useState([]);
+  const [processingItem, setProcessingItem] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && unlinkedData) {
+      const items = [];
+      if (unlinkedData.payments?.length > 0) {
+        unlinkedData.payments.forEach(p => {
+          items.push({ type: 'payment', data: p, amount: p.amount, date: p.paidAt, description: `Paiement facture ${p.invoiceId?.number || ''}` });
+        });
+      }
+      if (unlinkedData.expenses?.length > 0) {
+        unlinkedData.expenses.forEach(e => {
+          items.push({ type: 'expense', data: e, amount: e.amount, date: e.date, description: e.description });
+        });
+      }
+      setUnlinkedItems(items);
+      setCurrentIndex(0);
+      setStep(items.length > 0 ? 'review' : 'intro');
+    }
+  }, [isOpen, unlinkedData]);
 
   const handleReconcile = async () => {
     setLoading(true);
@@ -395,20 +431,183 @@ const ReconcileModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
+  const handleProcessItem = async (action) => {
+    const item = unlinkedItems[currentIndex];
+    setProcessingItem(true);
+    try {
+      if (action === 'sync') {
+        if (item.type === 'payment') {
+          await cashTransactionService.createFromPayment(item.data._id);
+        } else {
+          await cashTransactionService.createFromExpense(item.data._id);
+        }
+      }
+      if (currentIndex < unlinkedItems.length - 1) {
+        setCurrentIndex(prev => prev + 1);
+      } else {
+        setStep('complete');
+      }
+    } catch (error) {
+      console.error('Error processing item:', error);
+      alert('Erreur lors du traitement: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setProcessingItem(false);
+    }
+  };
+
+  const handleSkipItem = () => {
+    if (currentIndex < unlinkedItems.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      setStep('complete');
+    }
+  };
+
+  const handleSkipAll = () => {
+    setStep('complete');
+  };
+
   const handleClose = () => {
     setResult(null);
+    setStep('intro');
+    setCurrentIndex(0);
     onClose();
   };
 
-  return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Réconcilier la caisse" size="md">
-      <div className="space-y-4">
-        <p className="text-slate-600 dark:text-slate-300">
-          Cette action synchronisera les paiements de factures et les dépenses avec la caisse. Elle créera des transactions pour tous les paiements et dépenses qui ne sont pas encore liés.
-        </p>
+  const currentItem = unlinkedItems[currentIndex];
+  const totalUnlinked = unlinkedItems.length;
 
-        {result ? (
-          <div className="space-y-3">
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title="Réconcilier la caisse" size="lg">
+      <div className="space-y-4">
+        {step === 'intro' && (
+          <>
+            <p className="text-slate-600 dark:text-slate-300">
+              Cette action synchronisera les paiements de factures et les dépenses avec la caisse. Elle créera des transactions pour tous les paiements et dépenses qui ne sont pas encore liés.
+            </p>
+
+            {(unlinkedData?.payments?.length > 0 || unlinkedData?.expenses?.length > 0) && (
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 mb-2">
+                  <FiAlertTriangle />
+                  <span className="font-medium">Transactions non synchronisées</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500">Paiements en attente</p>
+                    <p className="font-semibold">{unlinkedData.payments?.length || 0}</p>
+                    <p className="text-emerald-600">{formatCurrency(unlinkedData.payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0, 'MAD')}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Dépenses en attente</p>
+                    <p className="font-semibold">{unlinkedData.expenses?.length || 0}</p>
+                    <p className="text-red-600">-{formatCurrency(unlinkedData.expenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0, 'MAD')}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                <FiAlertTriangle />
+                <span className="font-medium">Action irréversible</span>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                Assurez-vous que les données sont correctes avant de procéder.
+              </p>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="secondary" onClick={handleClose}>Annuler</Button>
+              {totalUnlinked > 0 ? (
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={handleSkipAll}>Tout ignorer</Button>
+                  <Button onClick={() => setStep('review')}>
+                    Examiner ({totalUnlinked})
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={handleReconcile} loading={loading}>
+                  <FiRefreshCw className="text-sm" />
+                  Réconcilier
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+
+        {step === 'review' && currentItem && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-500">
+                Transaction {currentIndex + 1} sur {totalUnlinked}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleSkipAll}>
+                Terminer
+              </Button>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${currentItem.type === 'payment' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                    {currentItem.type === 'payment' ? <FiArrowUpCircle /> : <FiArrowDownCircle />}
+                  </div>
+                  <div>
+                    <p className="font-medium">{currentItem.type === 'payment' ? 'Paiement' : 'Dépense'}</p>
+                    <p className="text-sm text-slate-500">{formatDateFull(currentItem.date)}</p>
+                  </div>
+                </div>
+                <span className={`text-xl font-bold ${currentItem.type === 'payment' ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {currentItem.type === 'payment' ? '+' : '-'}{formatCurrency(currentItem.amount, 'MAD')}
+                </span>
+              </div>
+              <p className="text-slate-600 dark:text-slate-300">{currentItem.description}</p>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t">
+              <Button variant="secondary" onClick={handleSkipItem}>Ignorer</Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="danger" 
+                  onClick={() => handleProcessItem('ignore')}
+                  disabled={processingItem}
+                >
+                  Ignorer
+                </Button>
+                <Button 
+                  onClick={() => handleProcessItem('sync')}
+                  loading={processingItem}
+                >
+                  <FiCheck className="text-sm" />
+                  Synchroniser
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'complete' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-center">
+              <FiCheck className="mx-auto text-3xl text-emerald-600 mb-3" />
+              <p className="font-semibold text-emerald-600">Examen terminé</p>
+              <p className="text-sm text-slate-500 mt-1">
+                Vous avez examiné {currentIndex + 1} transaction(s)
+              </p>
+            </div>
+            
+            <div className="flex justify-center gap-3 pt-4 border-t">
+              <Button onClick={handleReconcile} loading={loading}>
+                <FiRefreshCw className="text-sm" />
+                Finaliser la réconciliation
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div className="space-y-3 pt-4 border-t">
             {result.error ? (
               <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-700 dark:text-red-300">
                 <p className="font-semibold">Erreur</p>
@@ -435,29 +634,13 @@ const ReconcileModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
             )}
           </div>
-        ) : (
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-              <FiAlertTriangle />
-              <span className="font-medium">Action irréversible</span>
-            </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-              Assurez-vous que les données sont correctes avant de procéder.
-            </p>
-          </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="secondary" onClick={handleClose}>
-            {result ? 'Fermer' : 'Annuler'}
-          </Button>
-          {!result && (
-            <Button onClick={handleReconcile} loading={loading}>
-              <FiRefreshCw className="text-sm" />
-              Réconcilier
-            </Button>
-          )}
-        </div>
+        {step === 'intro' && result && (
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="secondary" onClick={handleClose}>Fermer</Button>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -472,27 +655,51 @@ const CashFlowChart = ({ data, currency }) => {
     );
   }
 
-  const maxValue = Math.max(...data.map(d => Math.max(d.income || 0, d.expenses || 0)));
+  const chartData = data.slice(-7);
+  
+  const values = chartData.flatMap(d => [d.income || 0, d.expenses || 0].filter(v => v > 0));
+  const mean = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+  const stdDev = values.length > 0 ? Math.sqrt(values.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / values.length) : 0;
+  const threshold = mean + (stdDev * 2);
+
+  const maxValue = Math.max(...chartData.map(d => Math.max(d.income || 0, d.expenses || 0)));
 
   return (
     <div className="space-y-2">
-      {data.slice(-7).map((day, idx) => {
-        const incomePercent = maxValue > 0 ? ((day.income || 0) / maxValue) * 100 : 0;
-        const expensePercent = maxValue > 0 ? ((day.expenses || 0) / maxValue) * 100 : 0;
+      {chartData.map((day, idx) => {
+        const income = day.income || 0;
+        const expenses = day.expenses || 0;
+        const incomePercent = maxValue > 0 ? (income / maxValue) * 100 : 0;
+        const expensePercent = maxValue > 0 ? (expenses / maxValue) * 100 : 0;
         const dateLabel = day._id.length === 10 
           ? new Date(day._id).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
           : day._id;
 
+        const isIncomeOutlier = income > threshold && threshold > 0;
+        const isExpenseOutlier = expenses > threshold && threshold > 0;
+
         return (
-          <div key={idx} className="flex items-center gap-3">
+          <div key={idx} className="flex items-center gap-3 group relative">
             <div className="w-20 text-xs text-slate-500 truncate">{dateLabel}</div>
-            <div className="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden flex">
-              <div className="h-full bg-emerald-500 transition-all" style={{ width: `${incomePercent}%` }} />
-              <div className="h-full bg-red-500 transition-all" style={{ width: `${expensePercent}%` }} />
+            <div className="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded overflow-hidden flex relative">
+              <div 
+                className={`h-full bg-emerald-500 transition-all ${isIncomeOutlier ? 'bg-emerald-400' : ''}`} 
+                style={{ width: `${incomePercent}%` }} 
+                title={isIncomeOutlier ? `Valeur inhabituelle: ${formatCurrency(income, currency)}` : ''}
+              />
+              <div 
+                className={`h-full bg-red-500 transition-all ${isExpenseOutlier ? 'bg-red-400' : ''}`} 
+                style={{ width: `${expensePercent}%` }}
+                title={isExpenseOutlier ? `Valeur inhabituelle: ${formatCurrency(expenses, currency)}` : ''}
+              />
             </div>
             <div className="w-36 text-right text-xs">
-              <span className="text-emerald-600">+{formatCurrency(day.income || 0, currency)}</span>
-              <span className="text-red-600 ml-2">-{formatCurrency(day.expenses || 0, currency)}</span>
+              <span className={`${isIncomeOutlier ? 'text-emerald-700 dark:text-emerald-300 font-bold' : 'text-emerald-600'}`}>
+                +{formatCurrency(income, currency)}
+              </span>
+              <span className={`ml-2 ${isExpenseOutlier ? 'text-red-700 dark:text-red-300 font-bold' : 'text-red-600'}`}>
+                -{formatCurrency(expenses, currency)}
+              </span>
             </div>
           </div>
         );
@@ -500,6 +707,13 @@ const CashFlowChart = ({ data, currency }) => {
       <div className="flex items-center gap-4 pt-2 text-xs text-slate-500">
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-500 rounded" /> Entrées</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-500 rounded" /> Dépenses</span>
+        {threshold > 0 && (
+          <span className="ml-auto text-xs" title="Les valeurs dépassant 2x la moyenne sont marquées">
+            <span className="inline-block w-2 h-2 bg-emerald-400 rounded mx-1"></span>
+            <span className="inline-block w-2 h-2 bg-red-400 rounded mx-1"></span>
+           异常值
+          </span>
+        )}
       </div>
     </div>
   );
@@ -523,12 +737,15 @@ const Caisse = () => {
     recent: [],
   });
   const [chartData, setChartData] = useState([]);
+  const [unlinkedPaymentsList, setUnlinkedPaymentsList] = useState([]);
+  const [unlinkedExpensesList, setUnlinkedExpensesList] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [defaultTransactionType, setDefaultTransactionType] = useState('out');
 
   const [filters, setFilters] = useState({
     type: 'all',
@@ -551,16 +768,19 @@ const Caisse = () => {
       if (filters.endDate) params.endDate = filters.endDate;
       params.limit = 500;
 
-      const [transRes, summaryRes, chartRes] = await Promise.all([
+      const [transRes, summaryRes, chartRes, unlinkedRes] = await Promise.all([
         cashTransactionService.getAll(params),
         cashTransactionService.getSummary({
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
         }),
         cashTransactionService.getChartData({ period: 'daily' }),
+        cashTransactionService.getUnlinked(),
       ]);
 
       setTransactions(transRes.data || []);
+      setUnlinkedPaymentsList(unlinkedRes.payments || []);
+      setUnlinkedExpensesList(unlinkedRes.expenses || []);
       setSummary({
         balance: summaryRes.balance || 0,
         totalIn: summaryRes.totalIn || 0,
@@ -593,7 +813,8 @@ const Caisse = () => {
     return () => window.removeEventListener(EVENT_NAME, handleCashUpdated);
   }, []);
 
-  const handleAddTransaction = () => {
+  const handleAddTransaction = (type = 'out') => {
+    setDefaultTransactionType(type);
     setEditingTransaction(null);
     setShowModal(true);
   };
@@ -719,7 +940,11 @@ const Caisse = () => {
             <FiDownload className="text-sm" />
             Export
           </Button>
-          <Button onClick={handleAddTransaction}>
+          <Button onClick={() => handleAddTransaction('in')}>
+            <FiPlus className="text-sm" />
+            Entrée
+          </Button>
+          <Button variant="danger" onClick={() => handleAddTransaction('out')}>
             <FiPlus className="text-sm" />
             Sortie
           </Button>
@@ -952,6 +1177,7 @@ const Caisse = () => {
         onClose={() => setShowModal(false)}
         onSuccess={handleSuccess}
         editingTransaction={editingTransaction}
+        defaultType={defaultTransactionType}
       />
 
       <TransactionDetailModal
@@ -965,6 +1191,10 @@ const Caisse = () => {
         isOpen={showReconcileModal}
         onClose={() => setShowReconcileModal(false)}
         onSuccess={handleReconcileSuccess}
+        unlinkedData={{
+          payments: unlinkedPaymentsList,
+          expenses: unlinkedExpensesList
+        }}
       />
     </PageLayout>
   );

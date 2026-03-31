@@ -59,6 +59,7 @@ const Reports = () => {
   const [budgetYear, setBudgetYear] = useState(new Date().getFullYear());
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
+  const [topClients, setTopClients] = useState([]);
   const reportRef = useRef(null);
 
   const fetchReportsData = useCallback(async () => {
@@ -123,6 +124,21 @@ const Reports = () => {
         cashflow: cashflow,
         activeClients: activeClients,
       });
+
+      const clientRevenue = {};
+      allInvoices.filter(inv => inv.status === 'payé' || inv.status === 'paid').forEach(inv => {
+        const clientId = inv.clientId?._id || inv.clientId;
+        const clientName = inv.clientId?.companyName || 'Client';
+        if (!clientRevenue[clientId]) {
+          clientRevenue[clientId] = { name: clientName, total: 0 };
+        }
+        clientRevenue[clientId].total += inv.totalTTC || inv.total || 0;
+      });
+      const topClientsList = Object.entries(clientRevenue)
+        .map(([id, data]) => ({ id, name: data.name, revenue: data.total }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+      setTopClients(topClientsList);
 
       const months = [];
       const now = new Date();
@@ -435,6 +451,7 @@ const Reports = () => {
     { title: 'Dépenses Totales', value: stats.expenses, change: null, type: 'expense', filter: 'expense' },
     { title: 'Bénéfice Net', value: stats.profit, change: null, type: 'profit', filter: 'all' },
     { title: 'Flux de Trésorerie', value: stats.cashflow, change: null, type: 'cashflow', filter: 'all' },
+    { title: 'Top Client', value: topClients[0]?.name || '-', subtitle: topClients[0] ? formatCurrency(topClients[0].revenue, currency) : '', type: 'client', filter: 'all' },
   ];
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -524,7 +541,7 @@ const Reports = () => {
               className={`p-6 cursor-pointer transition-all duration-200 ${
                 activeFilter === stat.filter ? 'ring-2 ring-primary ring-offset-2' : ''
               }`}
-              onClick={() => setActiveFilter(stat.filter === activeFilter ? 'all' : stat.filter)}
+              onClick={() => stat.type === 'client' ? null : setActiveFilter(stat.filter === activeFilter ? 'all' : stat.filter)}
             >
               <div className="flex justify-between items-start mb-4">
                 <p className="text-sm text-slate-500 font-medium">{stat.title}</p>
@@ -532,13 +549,17 @@ const Reports = () => {
                   stat.type === 'revenue' ? 'bg-emerald-50 text-emerald-600' : 
                   stat.type === 'expense' ? 'bg-slate-100 text-slate-600' : 
                   stat.type === 'profit' ? 'bg-primary/10 text-primary' : 
+                  stat.type === 'client' ? 'bg-blue-50 text-blue-600' :
                   'bg-rose-50 text-rose-600'
                 }`}>
                   {getIcon(stat.type)}
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-2xl font-bold">{formatCurrency(stat.value, currency)}</h3>
+                <h3 className={`text-2xl font-bold ${stat.type === 'client' ? 'text-lg' : ''}`}>
+                  {stat.type === 'client' ? stat.value : formatCurrency(stat.value, currency)}
+                </h3>
+                {stat.subtitle && <span className="text-sm text-emerald-600">{stat.subtitle}</span>}
               </div>
             </Card>
           ))}
@@ -612,7 +633,15 @@ const Reports = () => {
 
         <Card title="Échéancier des Factures Impayées">
           {agingData.length === 0 || agingData.every(d => d.count === 0) ? (
-            <p className="text-slate-500 text-center py-8">Aucune facture impayée</p>
+            <div className="text-center py-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 mb-3">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-emerald-600 font-medium">Aucune facture impayée</p>
+              <p className="text-sm text-slate-500 mt-1">Toutes les factures sont payées dans les délais</p>
+            </div>
           ) : (
             <div className="space-y-4">
               {agingData.map((item, index) => {
@@ -637,6 +666,32 @@ const Reports = () => {
             </div>
           )}
         </Card>
+
+        {topClients.length > 0 && (
+          <Card title="Top Clients par Revenu">
+            <div className="space-y-3">
+              {topClients.map((client, idx) => (
+                <div key={client.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                      idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-slate-400' : idx === 2 ? 'bg-amber-600' : 'bg-slate-300'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900 dark:text-white">{client.name}</p>
+                      <p className="text-xs text-slate-500">Client</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-emerald-600">{formatCurrency(client.revenue, currency)}</p>
+                    <p className="text-xs text-slate-500">Revenu total</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         <Card 
           title={

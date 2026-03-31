@@ -685,6 +685,9 @@ const Invoices = () => {
     };
     setEditingInvoice(duplicatedInvoice);
     setShowModal(true);
+    setTimeout(() => {
+      alert(`Facture "${invoice.number}" dupliquée avec succès. Vous pouvez la modifier.`);
+    }, 500);
   };
 
   const columns = [
@@ -706,7 +709,14 @@ const Invoices = () => {
     {
       key: 'dueDate',
       header: 'Échéance',
-      render: (row) => formatDateShort(row.dueDate),
+      render: (row) => {
+        const days = row.dueDate ? Math.floor((new Date() - new Date(row.dueDate)) / (1000 * 60 * 60 * 24)) : null;
+        if (days === null) return '-';
+        if (days > 0 && row.status !== 'payé') {
+          return <span className="text-red-600 font-medium">{days}j</span>;
+        }
+        return formatDateShort(row.dueDate);
+      },
     },
     {
       key: 'totalTTC',
@@ -733,6 +743,11 @@ const Invoices = () => {
                   try {
                     await invoiceService.update(row._id, { status: 'sent' });
                     fetchInvoices();
+                    setTimeout(() => {
+                      if (window.confirm('Voulez-vous envoyer cette facture par email maintenant ?')) {
+                        openEmailModal({ ...row, status: 'sent' });
+                      }
+                    }, 300);
                   } catch (error) {
                     console.error('Error finalizing invoice:', error);
                     alert('Erreur lors de la finalisation');

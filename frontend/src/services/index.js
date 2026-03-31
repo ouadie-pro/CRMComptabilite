@@ -369,4 +369,9 @@ export const cashTransactionService = {
     const response = await api.post('/cash-transactions/reconcile');
     return response.data;
   },
+
+  getUnlinked: async () => {
+    const response = await api.get('/cash-transactions/unlinked');
+    return response.data;
+  },
 };

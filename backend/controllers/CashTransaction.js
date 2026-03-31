@@ -438,6 +438,35 @@ const getChartData = async (req, res) => {
   }
 };
 
+const getUnlinkedTransactions = async (req, res) => {
+  try {
+    const linkedPaymentIds = await CashTransaction.distinct('sourceId', { source: 'invoice' });
+    const linkedExpenseIds = await CashTransaction.distinct('sourceId', { source: 'expense' });
+    const linkedPaymentIdStrings = linkedPaymentIds.map(id => id?.toString()).filter(Boolean);
+    const linkedExpenseIdStrings = linkedExpenseIds.map(id => id?.toString()).filter(Boolean);
+
+    const missingPayments = await Payment.find({
+      _id: { $nin: linkedPaymentIdStrings }
+    }).populate('invoiceId', 'number totalTTC').limit(100);
+
+    const missingExpenses = await Expense.find({
+      _id: { $nin: linkedExpenseIdStrings },
+      status: { $ne: 'rejected' }
+    }).limit(100);
+
+    res.status(200).json({
+      payments: missingPayments,
+      expenses: missingExpenses,
+      counts: {
+        payments: missingPayments.length,
+        expenses: missingExpenses.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   getAllTransactions,
   getTransactionById,
@@ -446,5 +475,6 @@ module.exports = {
   deleteTransaction,
   getSummary,
   reconcileTransactions,
-  getChartData
+  getChartData,
+  getUnlinkedTransactions
 };

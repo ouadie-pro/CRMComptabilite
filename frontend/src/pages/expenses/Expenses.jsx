@@ -198,6 +198,25 @@ const Expenses = () => {
 
   const statusLabels = { pending: 'En attente', approved: 'Approuvé', rejected: 'Rejeté' };
 
+  const totalAmount = expenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const approvedAmount = expenses.filter(exp => exp.status === 'approved').reduce((sum, exp) => sum + (exp.amount || 0), 0);
+  const pendingAmount = expenses.filter(exp => exp.status === 'pending').reduce((sum, exp) => sum + (exp.amount || 0), 0);
+
+  const categoryTotals = expenses.reduce((acc, exp) => {
+    const cat = exp.category || 'autre';
+    acc[cat] = (acc[cat] || 0) + (exp.amount || 0);
+    return acc;
+  }, {});
+
+  const budgetByCategory = {
+    salaire: 15000,
+    loyer: 5000,
+    services: 3000,
+    fournitures: 2000,
+    transport: 1500,
+    autre: 1000
+  };
+
   const handleAttachmentUpload = async (expenseId, file) => {
     const formData = new FormData();
     formData.append('receipt', file);
@@ -284,7 +303,50 @@ const Expenses = () => {
           )}
         </div>
         
-        {loading ? <div className="flex items-center justify-center h-64"><Loading size="lg" /></div> : <DataTable columns={columns} data={expenses} emptyMessage="Aucune dépense" />}
+        {loading ? <div className="flex items-center justify-center h-64"><Loading size="lg" /></div> : (
+          <>
+            <DataTable columns={columns} data={expenses} emptyMessage="Aucune dépense" />
+            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div>
+                  <span className="text-sm text-slate-500">Total général</span>
+                  <span className="ml-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(totalAmount, billing?.currency || 'MAD')}</span>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-500">Approuvé</span>
+                  <span className="ml-2 font-semibold text-emerald-600">{formatCurrency(approvedAmount, billing?.currency || 'MAD')}</span>
+                </div>
+                <div>
+                  <span className="text-sm text-slate-500">En attente</span>
+                  <span className="ml-2 font-semibold text-amber-600">{formatCurrency(pendingAmount, billing?.currency || 'MAD')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+              <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Budget vs Réel par catégorie</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {Object.entries(budgetByCategory).map(([cat, budget]) => {
+                  const actual = categoryTotals[cat] || 0;
+                  const percent = budget > 0 ? (actual / budget) * 100 : 0;
+                  const isOver = actual > budget;
+                  return (
+                    <div key={cat} className="text-center p-2 bg-white dark:bg-slate-900 rounded">
+                      <div className="text-xs text-slate-500 capitalize">{cat}</div>
+                      <div className={`text-sm font-semibold ${isOver ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                        {formatCurrency(actual, billing?.currency || 'MAD')}
+                      </div>
+                      <div className="text-xs text-slate-400">/ {formatCurrency(budget, billing?.currency || 'MAD')}</div>
+                      <div className={`text-xs ${isOver ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {percent.toFixed(0)}%
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </div>
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setError(null); }} title={editingExpense ? 'Modifier' : 'Nouvelle dépense'}>
         <ExpenseForm expense={editingExpense} onSubmit={handleSubmit} onCancel={() => { setShowModal(false); setError(null); }} loading={submitting} error={error} />
