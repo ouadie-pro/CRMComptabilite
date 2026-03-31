@@ -339,9 +339,10 @@ const sendInvoiceEmail = async (req, res) => {
     });
     
     if (!notif.smtpHost || !notif.smtpUser || !notif.smtpPass) {
-      return res.status(400).json({ 
-        message: 'Configuration SMTP incomplète. Veuillez configurer les paramètres email dans les paramètres.',
-        details: 'Paramètres SMTP manquants: host, utilisateur ou mot de passe'
+      return res.status(503).json({ 
+        message: 'Configuration SMTP non configurée',
+        details: 'Veuillez configurer les paramètres SMTP dans Paramètres > Notifications pour pouvoir envoyer des emails.',
+        code: 'SMTP_NOT_CONFIGURED'
       });
     }
     
@@ -350,6 +351,26 @@ const sendInvoiceEmail = async (req, res) => {
     
     if (!clientEmail) {
       return res.status(400).json({ message: 'Email du client non disponible. Veuillez vérifier que le client a une adresse email enregistrée.' });
+    }
+
+    if (!notif.smtpHost || !notif.smtpUser || !notif.smtpPass) {
+      console.warn('[sendInvoiceEmail] SMTP not configured - updating status but skipping email send');
+      if (invoice.status === 'brouillon') {
+        await Invoice.findByIdAndUpdate(id, { status: 'envoyé' });
+      }
+      await logAudit({
+        userId: req.user?._id,
+        action: "email_skipped_no_smtp",
+        entity: "Invoice",
+        entityId: id,
+        changes: { reason: 'SMTP not configured', recipient: clientEmail },
+        req
+      });
+      return res.status(200).json({ 
+        message: 'Statut mis à jour mais email non envoyé (SMTP non configuré). Configurez SMTP dans Paramètres pour envoyer des emails.',
+        sentTo: clientEmail,
+        skipped: true
+      });
     }
 
     const transporter = nodemailer.createTransport({

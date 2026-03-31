@@ -657,8 +657,22 @@ const Invoices = () => {
       fetchInvoices();
     } catch (error) {
       console.error('Error sending email:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Erreur lors de l\'envoi de l\'email';
-      alert(errorMsg);
+      console.log('Error response:', error.response?.data);
+      const errorData = error.response?.data;
+      const errorMsg = errorData?.message || errorData?.error || errorData?.details || 'Erreur lors de l\'envoi de l\'email';
+      
+      if (errorData?.skipped) {
+        alert(errorMsg);
+        setShowEmailModal(false);
+        setEmailData({ recipientEmail: '', subject: '', message: '' });
+        fetchInvoices();
+      } else if (error.response?.status === 503 || errorData?.code === 'SMTP_NOT_CONFIGURED') {
+        if (window.confirm('Les paramètres SMTP ne sont pas configurés. Voulez-vous les configurer maintenant?')) {
+          window.location.href = '/settings';
+        }
+      } else {
+        alert(`Erreur: ${errorMsg}`);
+      }
     } finally {
       setSendingEmail(false);
     }

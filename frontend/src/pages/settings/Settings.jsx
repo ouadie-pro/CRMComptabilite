@@ -121,10 +121,16 @@ const Settings = () => {
     setTestingSmtp(true);
     setSmtpResult(null);
     try {
-      const response = await api.post('/settings/test-smtp', { smtpHost: notifications.smtpHost });
-      setSmtpResult(response.data.message);
-    } catch {
-      setSmtpResult('Échec de connexion');
+      const response = await api.post('/settings/test-smtp', {
+        smtpHost: notifications.smtpHost,
+        smtpPort: notifications.smtpPort,
+        smtpUser: notifications.smtpUser,
+        smtpPass: notifications.smtpPass,
+        smtpSecure: notifications.smtpSecure
+      });
+      setSmtpResult(response.data.message || (response.data.success ? 'Connexion réussie' : 'Échec'));
+    } catch (error) {
+      setSmtpResult('Échec de connexion: ' + (error.response?.data?.message || error.message));
     } finally {
       setTestingSmtp(false);
     }
