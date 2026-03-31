@@ -5,7 +5,7 @@ import { Card, Badge, Button, Loading, Modal, Input, Select } from '../../compon
 import { clientService, invoiceService, interactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone, FiPhoneCall, FiMessageSquare, FiTrash2 } from 'react-icons/fi';
+import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone, FiPhoneCall, FiMessageSquare, FiTrash2, FiTrendingUp, FiTrendingDown, FiFileText, FiCheckCircle } from 'react-icons/fi';
 
 const ClientDetail = () => {
   const { id } = useParams();
@@ -180,14 +180,61 @@ const ClientDetail = () => {
                 <Badge variant={client.status === 'actif' || client.status === 'active' ? 'success' : 'default'} className="mb-4">
                   {client.status === 'actif' || client.status === 'active' ? 'Actif' : 'Inactif'}
                 </Badge>
-                <div className="text-right">
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Encours Client</p>
-                  <p className="text-2xl font-bold text-primary">{formatCurrency(client.totalBilled || 0, currency)}</p>
-                </div>
               </div>
             </div>
           </div>
         </Card>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <FiFileText className="text-blue-600 text-lg" />
+              </div>
+              <div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">Total Facturé</p>
+                <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{formatCurrency(client.totalBilled || 0, currency)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-lg p-4 border border-emerald-200 dark:border-emerald-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/20 rounded-lg">
+                <FiCheckCircle className="text-emerald-600 text-lg" />
+              </div>
+              <div>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Montant Payé</p>
+                <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(client.totalPaid || 0, currency)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500/20 rounded-lg">
+                <FiTrendingDown className="text-amber-600 text-lg" />
+              </div>
+              <div>
+                <p className="text-xs text-amber-600 dark:text-amber-400">Créances</p>
+                <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{formatCurrency((client.totalBilled || 0) - (client.totalPaid || 0), currency)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <FiTrendingUp className="text-purple-600 text-lg" />
+              </div>
+              <div>
+                <p className="text-xs text-purple-600 dark:text-purple-400">Nb Factures</p>
+                <p className="text-xl font-bold text-purple-700 dark:text-purple-300">{client.invoiceCount || 0}</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Tabs */}
         <div className="border-b border-slate-200 dark:border-slate-800">

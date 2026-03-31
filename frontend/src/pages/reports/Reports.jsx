@@ -5,7 +5,7 @@ import { Card, Button, Loading, Badge } from '../../components/ui';
 import { invoiceService, clientService, expenseService, cashTransactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase, FiDownload, FiCalendar, FiFilter } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiShoppingCart, FiBriefcase, FiDownload, FiCalendar, FiFilter, FiFileText } from 'react-icons/fi';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -41,7 +41,18 @@ const Reports = () => {
   const location = useLocation();
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeFilter, setActiveFilter] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  
+  const getDefaultDateRange = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      start: firstDay.toISOString().split('T')[0].slice(0, 7),
+      end: lastDay.toISOString().split('T')[0].slice(0, 7)
+    };
+  };
+  
+  const [dateRange, setDateRange] = useState(getDefaultDateRange);
   const [exporting, setExporting] = useState(false);
   const reportRef = useRef(null);
 
@@ -154,13 +165,29 @@ const Reports = () => {
       }));
       setExpenseCategories(categories);
 
-      const formattedCashData = Array.isArray(cashData) ? cashData.map(d => ({
-        month: d._id || d.month || '',
-        income: d.income || d.totalIn || 0,
-        expenses: d.expenses || d.totalOut || 0,
-        balance: (d.income || d.totalIn || 0) - (d.expenses || d.totalOut || 0)
-      })) : [];
-      setCashFlowData(formattedCashData);
+      const cashFlowMonths = months.map(month => {
+        const monthInvoices = allInvoices.filter(inv => {
+          const invDate = new Date(inv.issueDate || inv.date);
+          return invDate >= month.start && invDate <= month.end;
+        });
+        const monthExpenses = allExpenses.filter(exp => {
+          const expDate = new Date(exp.date);
+          return expDate >= month.start && expDate <= month.end;
+        });
+        const income = monthInvoices
+          .filter(inv => inv.status === 'payé')
+          .reduce((sum, inv) => sum + (inv.totalTTC || inv.total || 0), 0);
+        const expenses = monthExpenses
+          .filter(exp => exp.status === 'approved')
+          .reduce((sum, exp) => sum + (exp.amount || 0), 0);
+        return {
+          month: month.label,
+          income,
+          expenses,
+          balance: income - expenses
+        };
+      });
+      setCashFlowData(cashFlowMonths);
 
       const transactions = [
         ...filteredInvoices.slice(0, 5).map(inv => ({
@@ -198,6 +225,60 @@ const Reports = () => {
   };
 
   window.refreshReports = refreshReports;
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const XLSX = await import('xlsx');
+      
+      const workbook = XLSX.utils.book_new();
+      
+      const summaryData = [
+        ['Rapport Financier'],
+        [''],
+        ['Période', `${dateRange.start} à ${dateRange.end}`],
+        [''],
+        ['Revenu Total', stats.revenue],
+        ['Dépenses Totales', stats.expenses],
+        ['Bénéfice Net', stats.profit],
+        ['Flux de Trésorerie', stats.cashflow],
+        ['Clients Actifs', stats.activeClients],
+        [''],
+      ];
+      
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Résumé');
+      
+      const transactionsData = [
+        ['Date', 'Type', 'Description', 'Montant', 'Statut'],
+        ...recentTransactions.map(tx => [
+          tx.date,
+          tx.type,
+          tx.client,
+          tx.amount,
+          tx.status === 'paid' ? 'Payé' : 'En attente'
+        ])
+      ];
+      const transactionsSheet = XLSX.utils.aoa_to_sheet(transactionsData);
+      XLSX.utils.book_append_sheet(workbook, transactionsSheet, 'Transactions');
+      
+      const monthlySheetData = monthlyData.map(m => ({
+        'Mois': m.month,
+        'Revenus': m.revenue,
+        'Dépenses': m.expenses,
+        'Bénéfice': m.profit
+      }));
+      const monthlySheet = XLSX.utils.json_to_sheet(monthlySheetData);
+      XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Données Mensuelles');
+      
+      XLSX.writeFile(workbook, `rapport-financier-${formatDateShort(new Date())}.xlsx`);
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      alert('Erreur lors de l\'export Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleExportPDF = async () => {
     setExporting(true);
@@ -379,6 +460,10 @@ const Reports = () => {
             }}>
               <FiFilter className="text-sm" />
               Réinitialiser
+            </Button>
+            <Button variant="secondary" onClick={handleExportExcel} loading={exporting}>
+              <FiFileText className="text-sm" />
+              Export Excel
             </Button>
             <Button onClick={handleExportPDF} loading={exporting}>
               <FiDownload className="text-sm" />

@@ -1,7 +1,9 @@
 const Invoice = require('../models/InvoiceSchema');
 const Payment = require('../models/PaymentSchema');
 const CashTransaction = require('../models/CashTransactionSchema');
+const Settings = require('../models/SettingsSchema');
 const logAudit = require('../utils/auditLogger');
+const nodemailer = require('nodemailer');
 
 const generateInvoiceNumber = async () => {
   const currentYear = new Date().getFullYear();
@@ -304,10 +306,148 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
+const sendInvoiceEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { recipientEmail, subject, message } = req.body;
+    
+    const invoice = await Invoice.findById(id)
+      .populate('clientId', 'companyName email phone address ice');
+    
+    if (!invoice) {
+      return res.status(404).json({ message: 'Facture non trouvée' });
+    }
+    
+    const settings = await Settings.findOne();
+    const notif = settings?.notifications || {};
+    
+    if (!notif.smtpHost || !notif.smtpUser) {
+      return res.status(400).json({ message: 'Configuration SMTP incomplète. Veuillez configurer les paramètres email dans les paramètres.' });
+    }
+    
+    const transporter = nodemailer.createTransport({
+      host: notif.smtpHost,
+      port: notif.smtpPort || 587,
+      secure: notif.smtpSecure || false,
+      auth: {
+        user: notif.smtpUser,
+        pass: notif.smtpPass,
+      },
+    });
+    
+    const clientName = invoice.clientId?.companyName || 'Client';
+    const clientEmail = recipientEmail || invoice.clientId?.email;
+    
+    if (!clientEmail) {
+      return res.status(400).json({ message: 'Email du client non disponible' });
+    }
+    
+    const formatCurrency = (amount) => {
+      return new Intl.NumberFormat('fr-FR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount || 0);
+    };
+    
+    const formatDate = (date) => {
+      return new Intl.DateTimeFormat('fr-FR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(new Date(date));
+    };
+    
+    const itemsHtml = invoice.items?.map(item => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.description || item.name || 'Produit'}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.unitPriceHT)} MAD</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${item.vatRate || 0}%</td>
+        <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${formatCurrency(item.totalHT)} MAD</td>
+      </tr>
+    `).join('') || '';
+    
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: #1e3a5f; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0;">FACTURE</h1>
+          <p style="margin: 5px 0 0 0; opacity: 0.9;">${invoice.number}</p>
+        </div>
+        
+        <div style="padding: 20px; background: #f9fafb;">
+          <div style="margin-bottom: 20px;">
+            <strong>Client:</strong> ${clientName}<br>
+            <strong>Date d'émission:</strong> ${formatDate(invoice.issueDate)}<br>
+            <strong>Date d'échéance:</strong> ${formatDate(invoice.dueDate)}
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+              <tr style="background: #e5e7eb;">
+                <th style="padding: 10px; text-align: left;">Description</th>
+                <th style="padding: 10px; text-align: center;">Qté</th>
+                <th style="padding: 10px; text-align: right;">Prix HT</th>
+                <th style="padding: 10px; text-align: right;">TVA</th>
+                <th style="padding: 10px; text-align: right;">Total HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          
+          <div style="text-align: right;">
+            <p><strong>Sous-total HT:</strong> ${formatCurrency(invoice.subtotalHT)} MAD</p>
+            <p><strong>TVA (20%):</strong> ${formatCurrency(invoice.totalVat)} MAD</p>
+            <p style="font-size: 1.2em;"><strong>TOTAL TTC:</strong> ${formatCurrency(invoice.totalTTC)} MAD</p>
+          </div>
+          
+          ${message ? `<div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #1e3a5f;">
+            <strong>Message:</strong><br>
+            ${message}
+          </div>` : ''}
+        </div>
+        
+        <div style="background: #1e3a5f; color: white; padding: 15px; text-align: center; font-size: 12px;">
+          ${settings.company?.name || 'Votre Entreprise'} | ICE: ${settings.company?.ice || 'N/A'}
+        </div>
+      </div>
+    `;
+    
+    const mailOptions = {
+      from: `"${notif.smtpFromName || settings.company?.name || 'CRM'}" <${notif.smtpFromEmail || notif.smtpUser}>`,
+      to: clientEmail,
+      subject: subject || `Facture ${invoice.number} - ${settings.company?.name || 'Votre Entreprise'}`,
+      html: emailHtml,
+    };
+    
+    await transporter.sendMail(mailOptions);
+    
+    if (invoice.status === 'brouillon') {
+      await Invoice.findByIdAndUpdate(id, { status: 'envoyé' });
+    }
+    
+    await logAudit({
+      userId: req.user?._id,
+      action: "email_sent",
+      entity: "Invoice",
+      entityId: id,
+      changes: { recipient: clientEmail, subject: mailOptions.subject },
+      req
+    });
+    
+    res.status(200).json({ message: 'Email envoyé avec succès', sentTo: clientEmail });
+  } catch (error) {
+    console.error('Email sending error:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'envoi de l\'email', error: error.message });
+  }
+};
+
 module.exports = {
   getAllInvoices,
   getInvoiceById,
   createInvoice,
   updateInvoice,
-  deleteInvoice
+  deleteInvoice,
+  sendInvoiceEmail
 };

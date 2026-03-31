@@ -32,6 +32,12 @@ const Settings = () => {
     firstReminder: 3,
     secondReminder: 7,
     smtpHost: '',
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: '',
+    smtpPass: '',
+    smtpFromEmail: '',
+    smtpFromName: '',
   });
   const [activeTab, setActiveTab] = useState('company');
 
@@ -391,19 +397,74 @@ const Settings = () => {
                     <p className="text-sm font-bold">Configuration du serveur email</p>
                   </div>
                   <p className="text-xs text-slate-500 mb-3">Utilisé pour l'envoi des factures et rappels automatiques.</p>
-                  <div className="flex gap-4">
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <Input 
+                      label="Serveur SMTP"
                       placeholder="smtp.mon-serveur.com" 
                       value={notifications.smtpHost} 
                       onChange={(e) => setNotifications({ ...notifications, smtpHost: e.target.value })} 
-                      className="flex-1" 
                     />
+                    <Input 
+                      label="Port SMTP"
+                      type="number"
+                      placeholder="587" 
+                      value={notifications.smtpPort} 
+                      onChange={(e) => setNotifications({ ...notifications, smtpPort: parseInt(e.target.value) || 587 })} 
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <Input 
+                      label="Utilisateur SMTP"
+                      placeholder="email@exemple.com" 
+                      value={notifications.smtpUser} 
+                      onChange={(e) => setNotifications({ ...notifications, smtpUser: e.target.value })} 
+                    />
+                    <Input 
+                      label="Mot de passe SMTP"
+                      type="password"
+                      placeholder="••••••••" 
+                      value={notifications.smtpPass} 
+                      onChange={(e) => setNotifications({ ...notifications, smtpPass: e.target.value })} 
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <Input 
+                      label="Email d'envoi (From)"
+                      placeholder="noreply@exemple.com" 
+                      value={notifications.smtpFromEmail} 
+                      onChange={(e) => setNotifications({ ...notifications, smtpFromEmail: e.target.value })} 
+                    />
+                    <Input 
+                      label="Nom d'envoi (From Name)"
+                      placeholder="Nom de l'entreprise" 
+                      value={notifications.smtpFromName} 
+                      onChange={(e) => setNotifications({ ...notifications, smtpFromName: e.target.value })} 
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-4">
+                    <input
+                      type="checkbox"
+                      id="smtpSecure"
+                      checked={notifications.smtpSecure || false}
+                      onChange={(e) => setNotifications({ ...notifications, smtpSecure: e.target.checked })}
+                      className="rounded border-slate-300"
+                    />
+                    <label htmlFor="smtpSecure" className="text-sm text-slate-600 dark:text-slate-400">
+                      Utiliser SSL/TLS (port 465)
+                    </label>
+                  </div>
+                  
+                  <div className="flex gap-4">
                     <Button onClick={handleTestSmtp} disabled={testingSmtp}>
-                      {testingSmtp ? 'Test...' : 'Tester'}
+                      {testingSmtp ? 'Test...' : 'Tester la connexion'}
                     </Button>
                   </div>
                   {smtpResult && (
-                    <p className={`text-sm mt-2 ${smtpResult.includes('réussie') ? 'text-green-600' : 'text-red-600'}`}>
+                    <p className={`text-sm mt-2 ${smtpResult.includes('réussie') || smtpResult.includes('succès') ? 'text-green-600' : 'text-red-600'}`}>
                       {smtpResult}
                     </p>
                   )}

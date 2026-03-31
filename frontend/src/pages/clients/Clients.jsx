@@ -15,7 +15,7 @@ const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
     city: client?.city || '',
     country: client?.country || '',
     ice: client?.ice || '',
-    status: client?.status === 'actif' ? 'active' : 'inactive',
+    status: (client?.status === 'actif' || !client) ? 'active' : 'inactive',
   });
 
   const handleChange = (e) => {

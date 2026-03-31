@@ -19,6 +19,12 @@ const settingsSchema = new mongoose.Schema({
     firstReminder: { type: Number, default: 3 },
     secondReminder: { type: Number, default: 7 },
     smtpHost: { type: String, default: '' },
+    smtpPort: { type: Number, default: 587 },
+    smtpSecure: { type: Boolean, default: false },
+    smtpUser: { type: String, default: '' },
+    smtpPass: { type: String, default: '' },
+    smtpFromEmail: { type: String, default: '' },
+    smtpFromName: { type: String, default: '' },
   },
 }, { timestamps: true });
 

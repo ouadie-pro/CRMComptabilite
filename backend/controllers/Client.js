@@ -101,7 +101,7 @@ const createClient = async (req, res) => {
       contactTitle: contactTitle || 'Client',
       city,
       country,
-      status: status === 'active' ? 'actif' : 'nouveau',
+      status: (status === 'active' || status === 'actif') ? 'actif' : 'nouveau',
     };
     const client = new Client(clientData);
     await client.save();

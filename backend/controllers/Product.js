@@ -44,6 +44,11 @@ const createProduct = async (req, res) => {
   try {
     const { price, cost, unit, status, category, sku, ...rest } = req.body;
     
+    const priceValue = parseFloat(price) || 0;
+    if (priceValue <= 0) {
+      return res.status(400).json({ message: 'Le prix doit être supérieur à 0' });
+    }
+    
     let finalSKU = sku;
     
     if (!finalSKU || finalSKU.trim() === '') {
@@ -94,6 +99,13 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { price, cost, unit, status, category, sku, ...rest } = req.body;
+    
+    if (price !== undefined) {
+      const priceValue = parseFloat(price) || 0;
+      if (priceValue <= 0) {
+        return res.status(400).json({ message: 'Le prix doit être supérieur à 0' });
+      }
+    }
     
     if (sku !== undefined && sku.trim() !== '') {
       const existingProduct = await Product.findOne({ sku: sku.trim(), _id: { $ne: req.params.id } });

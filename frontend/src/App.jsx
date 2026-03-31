@@ -18,6 +18,7 @@ import Audit from './pages/reports/Audit';
 import Settings from './pages/settings/Settings';
 import Interactions from './pages/interactions/Interactions';
 import Search from './pages/search/Search';
+import Users from './pages/users/Users';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -192,6 +193,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Search />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <Users />
           </ProtectedRoute>
         }
       />

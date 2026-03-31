@@ -4,7 +4,7 @@ import { Button, Input, Select, DataTable, Modal, Badge, Loading } from '../../c
 import { expenseService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiEdit2, FiPlus, FiTrash2, FiCheckSquare, FiSquare, FiCheckCircle } from 'react-icons/fi';
 
 const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
   const { billing } = useSettings();
@@ -91,6 +91,8 @@ const Expenses = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedExpenses, setSelectedExpenses] = useState([]);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -138,9 +140,74 @@ const Expenses = () => {
     }
   };
 
+  const toggleSelectExpense = (expenseId) => {
+    setSelectedExpenses(prev => 
+      prev.includes(expenseId) 
+        ? prev.filter(id => id !== expenseId)
+        : [...prev, expenseId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const pendingExpenses = expenses.filter(exp => exp.status === 'pending').map(exp => exp._id);
+    if (selectedExpenses.length === pendingExpenses.length && pendingExpenses.every(id => selectedExpenses.includes(id))) {
+      setSelectedExpenses([]);
+    } else {
+      setSelectedExpenses(pendingExpenses);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedExpenses.length === 0) {
+      alert('Veuillez sélectionner au moins une dépense');
+      return;
+    }
+    setBulkActionLoading(true);
+    try {
+      await expenseService.bulkApprove(selectedExpenses);
+      setSelectedExpenses([]);
+      fetchExpenses();
+      window.dispatchEvent(new Event('cashUpdated'));
+      if (window.refreshReports) window.refreshReports();
+    } catch (error) {
+      console.error('Error approving expenses:', error);
+      alert('Erreur lors de l\'approbation');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedExpenses.length === 0) {
+      alert('Veuillez sélectionner au moins une dépense');
+      return;
+    }
+    setBulkActionLoading(true);
+    try {
+      await expenseService.bulkReject(selectedExpenses);
+      setSelectedExpenses([]);
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error rejecting expenses:', error);
+      alert('Erreur lors du rejet');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
   const statusLabels = { pending: 'En attente', approved: 'Approuvé', rejected: 'Rejeté' };
 
   const columns = [
+    { key: 'select', header: '', width: '50px', render: (row) => (
+      row.status === 'pending' ? (
+        <button
+          onClick={() => toggleSelectExpense(row._id)}
+          className="text-slate-400 hover:text-primary transition-colors"
+        >
+          {selectedExpenses.includes(row._id) ? <FiCheckSquare className="text-primary" /> : <FiSquare />}
+        </button>
+      ) : null
+    )},
     { key: 'date', header: 'Date', render: (row) => formatDateShort(row.date) },
     { key: 'description', header: 'Description', render: (row) => <span className="font-medium">{row.description}</span> },
     { key: 'category', header: 'Catégorie', render: (row) => <Badge>{row.category}</Badge> },
@@ -162,15 +229,31 @@ const Expenses = () => {
   return (
     <PageLayout title="Dépenses" actions={<Button onClick={() => { setEditingExpense(null); setShowModal(true); }}><FiPlus />Nouvelle Dépense</Button>}>
       <div className="space-y-6">
-        <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
-          <option value="all">Toutes catégories</option>
-          <option value="salaire">Salaire</option>
-          <option value="loyer">Loyer</option>
-          <option value="services">Services</option>
-          <option value="fournitures">Fournitures</option>
-          <option value="transport">Transport</option>
-          <option value="autre">Autre</option>
-        </Select>
+        <div className="flex items-center justify-between">
+          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
+            <option value="all">Toutes catégories</option>
+            <option value="salaire">Salaire</option>
+            <option value="loyer">Loyer</option>
+            <option value="services">Services</option>
+            <option value="fournitures">Fournitures</option>
+            <option value="transport">Transport</option>
+            <option value="autre">Autre</option>
+          </Select>
+          
+          {selectedExpenses.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-500">{selectedExpenses.length} sélectionné(s)</span>
+              <Button variant="success" size="sm" onClick={handleBulkApprove} loading={bulkActionLoading}>
+                <FiCheckCircle className="text-sm" />
+                Approuver
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleBulkReject} loading={bulkActionLoading}>
+                Rejeter
+              </Button>
+            </div>
+          )}
+        </div>
+        
         {loading ? <div className="flex items-center justify-center h-64"><Loading size="lg" /></div> : <DataTable columns={columns} data={expenses} emptyMessage="Aucune dépense" />}
       </div>
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setError(null); }} title={editingExpense ? 'Modifier' : 'Nouvelle dépense'}>

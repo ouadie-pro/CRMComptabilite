@@ -21,7 +21,8 @@ Router.post('/login', loginUser);
 Router.post('/logout', authMiddleware, logoutUser);
 Router.post('/forgot-password', forgotPassword);
 Router.post('/reset-password', resetPassword);
-Router.post('/admin-reset-password', authMiddleware, requireRole('admin'), adminResetPassword);
+Router.post('/admin-reset-password', authMiddleware, requireRole('admin', 'directeur'), adminResetPassword);
+Router.post('/reset-password-admin', authMiddleware, requireRole('admin', 'directeur'), adminResetPassword);
 
 Router.use(authMiddleware);
 

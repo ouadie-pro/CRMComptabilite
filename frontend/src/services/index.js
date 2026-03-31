@@ -1,5 +1,37 @@
 import api from './api';
 
+export const userService = {
+  getAll: async () => {
+    const response = await api.get('/users');
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/users/${id}`);
+    return response.data;
+  },
+
+  register: async (data) => {
+    const response = await api.post('/auth/register', data);
+    return response.data;
+  },
+
+  update: async (id, data) => {
+    const response = await api.put(`/users/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id) => {
+    const response = await api.delete(`/users/${id}`);
+    return response.data;
+  },
+
+  resetPassword: async (id, newPassword) => {
+    const response = await api.post('/users/reset-password-admin', { userId: id, newPassword });
+    return response.data;
+  },
+};
+
 export const clientService = {
   getAll: async (params = {}) => {
     const response = await api.get('/clients', { params });
@@ -50,6 +82,11 @@ export const invoiceService = {
 
   delete: async (id) => {
     const response = await api.delete(`/invoices/${id}`);
+    return response.data;
+  },
+
+  sendEmail: async (id, data = {}) => {
+    const response = await api.post(`/invoices/${id}/send-email`, data);
     return response.data;
   },
 };
@@ -153,6 +190,16 @@ export const expenseService = {
 
   delete: async (id) => {
     const response = await api.delete(`/expenses/${id}`);
+    return response.data;
+  },
+
+  bulkApprove: async (ids) => {
+    const response = await api.post('/expenses/bulk-approve', { ids });
+    return response.data;
+  },
+
+  bulkReject: async (ids) => {
+    const response = await api.post('/expenses/bulk-reject', { ids });
     return response.data;
   },
 };

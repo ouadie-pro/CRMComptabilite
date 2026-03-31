@@ -4,10 +4,11 @@ import autoTable from 'jspdf-autotable';
 const BACKEND_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
 
 export const formatCurrencyPDF = (amount, currency = 'MAD') => {
-  const formatted = new Intl.NumberFormat('fr-FR', {
+  const value = amount || 0;
+  const formatted = value.toLocaleString('fr-FR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount || 0);
+  }).replace(/\s/g, ' ');
   return `${formatted} ${currency}`;
 };
 
@@ -60,7 +61,7 @@ const loadImageAsBase64 = async (url) => {
       fullUrl = `${BACKEND_URL}${url}`;
     }
     
-    const response = await fetch(fullUrl, { mode: 'cors' });
+    const response = await fetch(fullUrl);
     if (!response.ok) return null;
     
     const blob = await response.blob();
@@ -71,7 +72,6 @@ const loadImageAsBase64 = async (url) => {
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.warn('Failed to load logo:', error);
     return null;
   }
 };
@@ -132,9 +132,12 @@ export const generateInvoicePDF = async (invoice, settings = {}) => {
 
   if (logoBase64) {
     try {
-      doc.addImage(logoBase64, 'PNG', pageWidth - 45, 4, 28, 28, undefined, 'FAST');
+      const format = logoBase64.includes('data:image/png') ? 'PNG' : 
+                     logoBase64.includes('data:image/jpeg') ? 'JPEG' : 
+                     logoBase64.includes('data:image/webp') ? 'WEBP' : 'PNG';
+      doc.addImage(logoBase64, format, pageWidth - 45, 4, 28, 28, undefined, 'FAST');
     } catch (e) {
-      console.warn('Logo failed to add:', e);
+      // Silent fail - logo is optional
     }
   }
 

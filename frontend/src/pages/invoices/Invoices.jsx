@@ -6,7 +6,7 @@ import { invoiceService, clientService, productService, paymentService } from '.
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
-import { FiTrash2, FiPlus, FiEdit2, FiDownload, FiDollarSign } from 'react-icons/fi';
+import { FiTrash2, FiPlus, FiEdit2, FiDownload, FiDollarSign, FiMail, FiCopy } from 'react-icons/fi';
 
 const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) => {
   const { billing } = useSettings();
@@ -514,6 +514,10 @@ const Invoices = () => {
   const [submitting, setSubmitting] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [pdfDownloading, setPdfDownloading] = useState(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailInvoice, setEmailInvoice] = useState(null);
+  const [emailData, setEmailData] = useState({ recipientEmail: '', subject: '', message: '' });
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const statusFilterMap = {
     draft: 'brouillon',
@@ -638,6 +642,49 @@ const Invoices = () => {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (!emailData.recipientEmail) {
+      alert('Veuillez entrer une adresse email');
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      await invoiceService.sendEmail(emailInvoice._id, emailData);
+      alert('Email envoyé avec succès');
+      setShowEmailModal(false);
+      setEmailData({ recipientEmail: '', subject: '', message: '' });
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert(error.response?.data?.message || 'Erreur lors de l\'envoi de l\'email');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const openEmailModal = (invoice) => {
+    setEmailInvoice(invoice);
+    setEmailData({
+      recipientEmail: invoice.clientId?.email || '',
+      subject: `Facture ${invoice.number} - ${company.name || 'Votre Entreprise'}`,
+      message: ''
+    });
+    setShowEmailModal(true);
+  };
+
+  const handleDuplicateInvoice = (invoice) => {
+    const duplicatedInvoice = {
+      ...invoice,
+      _id: undefined,
+      number: '',
+      status: 'brouillon',
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: '',
+    };
+    setEditingInvoice(duplicatedInvoice);
+    setShowModal(true);
+  };
+
   const columns = [
     {
       key: 'number',
@@ -672,11 +719,17 @@ const Invoices = () => {
     {
       key: 'actions',
       header: '',
-      width: '100px',
+      width: '160px',
       render: (row) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => generatePDF(row)} disabled={pdfDownloading === row._id} title="Télécharger PDF">
             {pdfDownloading === row._id ? <Loading size="sm" /> : <FiDownload className="text-sm" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => openEmailModal(row)} title="Envoyer par email">
+            <FiMail className="text-sm" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => handleDuplicateInvoice(row)} title="Dupliquer">
+            <FiCopy className="text-sm" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => handleEdit(row)}>
             <FiEdit2 className="text-sm" />
@@ -734,7 +787,7 @@ const Invoices = () => {
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={editingInvoice ? 'Modifier la facture' : 'Nouvelle facture'}
+        title={editingInvoice?._id ? 'Modifier la facture' : 'Nouvelle facture'}
         size="xl"
       >
         <InvoiceForm
@@ -744,6 +797,46 @@ const Invoices = () => {
           loading={submitting}
           onInvoiceUpdate={(updatedInvoice) => setEditingInvoice(updatedInvoice)}
         />
+      </Modal>
+
+      {/* Email Modal */}
+      <Modal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        title={`Envoyer la facture ${emailInvoice?.number}`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Email du destinataire"
+            value={emailData.recipientEmail}
+            onChange={(e) => setEmailData({ ...emailData, recipientEmail: e.target.value })}
+            placeholder="client@exemple.com"
+            required
+          />
+          <Input
+            label="Objet"
+            value={emailData.subject}
+            onChange={(e) => setEmailData({ ...emailData, subject: e.target.value })}
+          />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Message (optionnel)</label>
+            <textarea
+              value={emailData.message}
+              onChange={(e) => setEmailData({ ...emailData, message: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-primary"
+              rows={4}
+              placeholder="Message optionnel à inclure dans l'email..."
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setShowEmailModal(false)}>Annuler</Button>
+            <Button onClick={handleSendEmail} loading={sendingEmail}>
+              <FiMail className="text-sm" />
+              Envoyer
+            </Button>
+          </div>
+        </div>
       </Modal>
     </PageLayout>
   );

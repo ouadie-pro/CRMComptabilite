@@ -191,6 +191,13 @@ const Products = () => {
   };
 
   const handleSubmit = async (data) => {
+    const priceValue = parseFloat(data.price) || 0;
+    if (priceValue <= 0) {
+      alert('Le prix doit être supérieur à 0');
+      setSubmitting(false);
+      return;
+    }
+    
     setSubmitting(true);
     try {
       const payload = {

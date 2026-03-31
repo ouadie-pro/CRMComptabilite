@@ -1,7 +1,12 @@
 export const formatCurrency = (amount, currency = 'MAD') => {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return `0,00 ${currency}`;
+  }
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
     currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 };
 

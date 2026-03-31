@@ -6,7 +6,9 @@ const {
   getExpenseById,
   createExpense,
   updateExpense,
-  deleteExpense
+  deleteExpense,
+  bulkApproveExpenses,
+  bulkRejectExpenses
 } = require('../controllers/Expense');
 
 Router.use(authMiddleware);
@@ -16,5 +18,7 @@ Router.get('/:id', getExpenseById);
 Router.post('/', createExpense);
 Router.put('/:id', updateExpense);
 Router.delete('/:id', deleteExpense);
+Router.post('/bulk-approve', bulkApproveExpenses);
+Router.post('/bulk-reject', bulkRejectExpenses);
 
 module.exports = Router;

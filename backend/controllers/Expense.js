@@ -2,6 +2,64 @@ const Expense = require('../models/ExpenseSchema');
 const CashTransaction = require('../models/CashTransactionSchema');
 const logAudit = require('../utils/auditLogger');
 
+const bulkApproveExpenses = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'IDs des dépenses requis' });
+    }
+    
+    const result = await Expense.updateMany(
+      { _id: { $in: ids } },
+      { status: 'approved' },
+      { new: true }
+    );
+    
+    await logAudit({
+      userId: req.user?._id,
+      action: "bulk_approve",
+      entity: "Expense",
+      entityId: ids.join(','),
+      changes: { approvedCount: result.modifiedCount },
+      req
+    });
+    
+    res.status(200).json({ message: `${result.modifiedCount} dépense(s) approuvée(s)`, modifiedCount: result.modifiedCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+const bulkRejectExpenses = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'IDs des dépenses requis' });
+    }
+    
+    const result = await Expense.updateMany(
+      { _id: { $in: ids } },
+      { status: 'rejected' },
+      { new: true }
+    );
+    
+    await logAudit({
+      userId: req.user?._id,
+      action: "bulk_reject",
+      entity: "Expense",
+      entityId: ids.join(','),
+      changes: { rejectedCount: result.modifiedCount },
+      req
+    });
+    
+    res.status(200).json({ message: `${result.modifiedCount} dépense(s) rejetée(s)`, modifiedCount: result.modifiedCount });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 const getAllExpenses = async (req, res) => {
   try {
     const { category, status, startDate, endDate } = req.query;
@@ -114,5 +172,7 @@ module.exports = {
   getExpenseById,
   createExpense,
   updateExpense,
-  deleteExpense
+  deleteExpense,
+  bulkApproveExpenses,
+  bulkRejectExpenses
 };
