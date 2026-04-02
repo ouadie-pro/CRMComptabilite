@@ -326,9 +326,16 @@ const sendInvoiceEmail = async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ message: 'Facture non trouvée' });
     }
+
+    if (!invoice.clientId) {
+      return res.status(400).json({ message: 'Client non associé à cette facture' });
+    }
     
     const settings = await Settings.findOne();
     const notif = settings?.notifications || {};
+    
+    const clientName = invoice.clientId.companyName || 'Client';
+    const clientEmail = recipientEmail || invoice.clientId.email;
     
     console.log('[sendInvoiceEmail] SMTP settings:', {
       smtpHost: notif.smtpHost ? 'set' : 'empty',
@@ -338,21 +345,6 @@ const sendInvoiceEmail = async (req, res) => {
       hasSmtpPass: !!notif.smtpPass
     });
     
-    if (!notif.smtpHost || !notif.smtpUser || !notif.smtpPass) {
-      return res.status(503).json({ 
-        message: 'Configuration SMTP non configurée',
-        details: 'Veuillez configurer les paramètres SMTP dans Paramètres > Notifications pour pouvoir envoyer des emails.',
-        code: 'SMTP_NOT_CONFIGURED'
-      });
-    }
-    
-    const clientName = invoice.clientId?.companyName || 'Client';
-    const clientEmail = recipientEmail || invoice.clientId?.email;
-    
-    if (!clientEmail) {
-      return res.status(400).json({ message: 'Email du client non disponible. Veuillez vérifier que le client a une adresse email enregistrée.' });
-    }
-
     if (!notif.smtpHost || !notif.smtpUser || !notif.smtpPass) {
       console.warn('[sendInvoiceEmail] SMTP not configured - updating status but skipping email send');
       if (invoice.status === 'brouillon') {
@@ -371,6 +363,10 @@ const sendInvoiceEmail = async (req, res) => {
         sentTo: clientEmail,
         skipped: true
       });
+    }
+    
+    if (!clientEmail) {
+      return res.status(400).json({ message: 'Email du client non disponible. Veuillez vérifier que le client a une adresse email enregistrée.' });
     }
 
     const transporter = nodemailer.createTransport({

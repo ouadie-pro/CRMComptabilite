@@ -505,7 +505,9 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
 };
 
 const Invoices = () => {
-  const { company, billing } = useSettings();
+  const { company, billing, notifications } = useSettings();
+  const [emailError, setEmailError] = useState(null);
+  const [emailSuccess, setEmailSuccess] = useState(false);
   const currency = billing?.currency || 'MAD';
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -645,16 +647,21 @@ const Invoices = () => {
 
   const handleSendEmail = async () => {
     if (!emailData.recipientEmail) {
-      alert('Veuillez entrer une adresse email');
+      setEmailError('Veuillez entrer une adresse email');
       return;
     }
+    setEmailError(null);
+    setEmailSuccess(false);
     setSendingEmail(true);
     try {
       await invoiceService.sendEmail(emailInvoice._id, emailData);
-      alert('Email envoyé avec succès');
-      setShowEmailModal(false);
-      setEmailData({ recipientEmail: '', subject: '', message: '' });
-      fetchInvoices();
+      setEmailSuccess(true);
+      setTimeout(() => {
+        setShowEmailModal(false);
+        setEmailData({ recipientEmail: '', subject: '', message: '' });
+        setEmailSuccess(false);
+        fetchInvoices();
+      }, 1500);
     } catch (error) {
       console.error('Error sending email:', error);
       console.log('Error response:', error.response?.data);
@@ -662,16 +669,29 @@ const Invoices = () => {
       const errorMsg = errorData?.message || errorData?.error || errorData?.details || 'Erreur lors de l\'envoi de l\'email';
       
       if (errorData?.skipped) {
-        alert(errorMsg);
-        setShowEmailModal(false);
-        setEmailData({ recipientEmail: '', subject: '', message: '' });
-        fetchInvoices();
+        setEmailError(errorMsg);
+        setTimeout(() => {
+          setShowEmailModal(false);
+          setEmailData({ recipientEmail: '', subject: '', message: '' });
+          setEmailError(null);
+          fetchInvoices();
+        }, 3000);
       } else if (error.response?.status === 503 || errorData?.code === 'SMTP_NOT_CONFIGURED') {
-        if (window.confirm('Les paramètres SMTP ne sont pas configurés. Voulez-vous les configurer maintenant?')) {
-          window.location.href = '/settings';
-        }
+        setEmailError(
+          <div className="flex flex-col gap-2">
+            <span>Les paramètres SMTP ne sont pas configurés.</span>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => window.location.href = '/settings'}
+              className="w-fit"
+            >
+              Configurer SMTP
+            </Button>
+          </div>
+        );
       } else {
-        alert(`Erreur: ${errorMsg}`);
+        setEmailError(errorMsg);
       }
     } finally {
       setSendingEmail(false);
@@ -859,6 +879,16 @@ const Invoices = () => {
         size="lg"
       >
         <div className="space-y-4">
+          {emailSuccess && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              Email envoyé avec succès !
+            </div>
+          )}
+          {emailError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {emailError}
+            </div>
+          )}
           <Input
             label="Email du destinataire"
             value={emailData.recipientEmail}
