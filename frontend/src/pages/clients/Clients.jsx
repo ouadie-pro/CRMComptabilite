@@ -5,6 +5,7 @@ import { Button, Input, Select, DataTable, Modal, Badge, Loading, EmptyState } f
 import { clientService } from '../../services';
 import { formatDate, formatCurrency, getInitials } from '../../utils/formatters';
 import { FiEdit2, FiEye, FiUserPlus, FiSearch, FiCheckSquare, FiSquare, FiDownload, FiTrash2, FiToggleLeft } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
 
 const ClientForm = ({ client, onSubmit, onCancel, loading }) => {
   const [formData, setFormData] = useState({
@@ -278,42 +279,42 @@ const Clients = () => {
     const selectedData = selectedClients.length > 0 
       ? clients.filter(c => selectedClients.includes(c._id))
       : clients;
+
+    const columnWidths = [
+      { wch: 25 }, // Nom
+      { wch: 30 }, // Email
+      { wch: 15 }, // Téléphone
+      { wch: 15 }, // Ville
+      { wch: 20 }, // ICE
+      { wch: 12 }, // Statut
+      { wch: 15 }, // Total Facturé
+      { wch: 15 }, // Limite Crédit
+      { wch: 20 }, // Conditions Paiement
+    ];
+
+    const headers = ['Nom', 'Email', 'Téléphone', 'Ville', 'ICE', 'Statut', 'Total Facturé', 'Limite Crédit', 'Conditions Paiement'];
     
-    const escapeCSV = (value) => {
-      if (value === null || value === undefined) return '';
-      const str = String(value);
-      if (str.includes(';') || str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
+    const rows = selectedData.map(c => [
+      { v: c.companyName, t: 's' },
+      { v: c.email, t: 's' },
+      { v: c.phone || '', t: 's' },
+      { v: c.city || '', t: 's' },
+      { v: c.ice || '', t: 's' },
+      { v: c.status === 'actif' ? 'Actif' : 'Inactif', t: 's' },
+      { v: c.totalBilled || 0, t: 'n' },
+      { v: c.creditLimit || 0, t: 'n' },
+      { v: `${c.paymentTerms || 30} jours`, t: 's' },
+    ]);
 
-    const formatNumberFrench = (num) => {
-      if (num === null || num === undefined || num === 0) return '0';
-      return String(num).replace('.', ',');
-    };
+    const data = [headers.map(h => ({ v: h, t: 's' })), ...rows];
 
-    const csvContent = [
-      ['Nom', 'Email', 'Téléphone', 'Ville', 'ICE', 'Statut', 'Total Facturé', 'Limite Crédit', 'Conditions Paiement'].join(';'),
-      ...selectedData.map(c => [
-        escapeCSV(c.companyName),
-        escapeCSV(c.email),
-        escapeCSV(c.phone || ''),
-        escapeCSV(c.city || ''),
-        escapeCSV(c.ice || ''),
-        c.status === 'actif' ? 'Actif' : 'Inactif',
-        formatNumberFrench(c.totalBilled || 0),
-        formatNumberFrench(c.creditLimit || 0),
-        `${c.paymentTerms || 30} jours`
-      ].join(';'))
-    ].join('\n');
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = columnWidths;
 
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `clients_export_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Clients');
+
+    XLSX.writeFile(wb, `clients_export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const columns = [
