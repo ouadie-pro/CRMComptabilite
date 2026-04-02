@@ -279,22 +279,37 @@ const Clients = () => {
       ? clients.filter(c => selectedClients.includes(c._id))
       : clients;
     
+    const escapeCSV = (value) => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (str.includes(';') || str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const formatNumberFrench = (num) => {
+      if (num === null || num === undefined || num === 0) return '0';
+      return String(num).replace('.', ',');
+    };
+
     const csvContent = [
-      ['Nom', 'Email', 'Téléphone', 'Ville', 'ICE', 'Statut', 'Total Facturé', 'Limite Crédit', 'Conditions Paiement'].join(','),
+      ['Nom', 'Email', 'Téléphone', 'Ville', 'ICE', 'Statut', 'Total Facturé', 'Limite Crédit', 'Conditions Paiement'].join(';'),
       ...selectedData.map(c => [
-        `"${c.companyName}"`,
-        `"${c.email}"`,
-        `"${c.phone || ''}"`,
-        `"${c.city || ''}"`,
-        `"${c.ice || ''}"`,
+        escapeCSV(c.companyName),
+        escapeCSV(c.email),
+        escapeCSV(c.phone || ''),
+        escapeCSV(c.city || ''),
+        escapeCSV(c.ice || ''),
         c.status === 'actif' ? 'Actif' : 'Inactif',
-        c.totalBilled || 0,
-        c.creditLimit || 0,
+        formatNumberFrench(c.totalBilled || 0),
+        formatNumberFrench(c.creditLimit || 0),
         `${c.paymentTerms || 30} jours`
-      ].join(','))
+      ].join(';'))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `clients_export_${new Date().toISOString().split('T')[0]}.csv`;
