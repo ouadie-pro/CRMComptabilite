@@ -6,6 +6,9 @@ import { formatDateTime, formatDateShort } from '../../utils/formatters';
 import { FiDownload, FiFileText, FiPlus, FiEdit2, FiTrash2, FiChevronRight, FiX, FiFile, FiCalendar } from 'react-icons/fi';
 import html2pdf from 'html2pdf.js';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { formatCurrency } from '../../utils/formatters';
 
 const sanitizeHTML = (str) => {
   if (typeof str !== 'string') return str;
@@ -56,101 +59,164 @@ const DetailsModal = ({ log, isOpen, onClose }) => {
 
   const downloadPDF = async () => {
     setDownloadingPDF(true);
-    let wrapper = null;
     try {
-      const contentEl = modalContentRef.current;
-      if (!contentEl) {
-        throw new Error('Content not found');
-      }
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-      wrapper = document.createElement('div');
-      wrapper.style.cssText = 'padding: 24px; background: #ffffff; width: 210mm; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #334155;';
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
 
-      const title = document.createElement('h2');
-      title.textContent = 'Audit Log Details';
-      title.style.cssText = 'font-size: 20px; font-weight: 700; margin-bottom: 16px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;';
-      wrapper.appendChild(title);
+      const navyBlue = '#1e3a5f';
+      const grayColor = '#6b7280';
+      const lightGray = '#f3f4f6';
 
-      const grid = document.createElement('div');
-      grid.style.cssText = 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px;';
+      doc.setFillColor(navyBlue);
+      doc.rect(0, 0, pageWidth, 35, 'F');
 
-      const addField = (label, value) => {
-        const div = document.createElement('div');
-        div.style.cssText = 'padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;';
-        div.innerHTML = `<div style="font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 4px;">${label}</div><div style="font-size: 14px; font-weight: 500; color: #1e293b;">${value || 'N/A'}</div>`;
-        grid.appendChild(div);
-      };
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Cabinet Atlas Comptabilite', margin, yPos + 8);
 
-      addField('Horodatage', formatDateTime(log.createdAt));
-      addField('Action', log.action || 'N/A');
-      addField('Categorie', log.entity || '-');
-      addField('Utilisateur', log.userId?.name || log.userId?.email || 'Systeme');
-      addField('Adresse IP', log.ipAddress || '-');
-      addField('ID Entite', log.entityId?.toString() || '-');
-      wrapper.appendChild(grid);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Journal d\'Audit - Detail de l\'activite', pageWidth - margin, yPos + 8, { align: 'right' });
 
-      const changesSection = document.createElement('div');
-      changesSection.style.cssText = 'margin-bottom: 20px;';
-      const changesLabel = document.createElement('div');
-      changesLabel.style.cssText = 'font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;';
-      changesLabel.textContent = 'Donnees modifiees';
-      changesSection.appendChild(changesLabel);
+      yPos = 45;
 
-      const changesBox = document.createElement('div');
-      changesBox.style.cssText = 'background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;';
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Journal d\'Audit - Detail de l\'activite', pageWidth / 2, yPos, { align: 'center' });
+
+      yPos += 10;
+
+      doc.setDrawColor(navyBlue);
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+
+      yPos += 10;
+
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor);
+      doc.text(`Genere le: ${formatDateTime(new Date())}`, pageWidth - margin, yPos, { align: 'right' });
+
+      yPos += 15;
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Champ', 'Valeur']],
+        body: [
+          ['Horodatage', formatDateTime(log.createdAt)],
+          ['Action', log.action || '-'],
+          ['Categorie', log.entity || '-'],
+          ['Utilisateur', log.userId?.name || log.userId?.email || 'Systeme'],
+          ['Adresse IP', log.ipAddress || '-'],
+          ['ID Entite', log.entityId?.toString() || '-'],
+        ],
+        theme: 'grid',
+        headStyles: {
+          fillColor: navyBlue,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 9,
+        },
+        bodyStyles: {
+          fontSize: 10,
+          cellPadding: 4,
+        },
+        columnStyles: {
+          0: { cellWidth: 40, fontStyle: 'bold', textColor: grayColor },
+          1: { cellWidth: 'auto' },
+        },
+        alternateRowStyles: {
+          fillColor: lightGray,
+        },
+        margin: { left: margin, right: margin },
+      });
+
+      yPos = doc.lastAutoTable.finalY + 15;
 
       if (log.changes && typeof log.changes === 'object') {
-        const table = document.createElement('table');
-        table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 13px;';
-        Object.entries(log.changes).forEach(([key, value], index, arr) => {
-          const tr = document.createElement('tr');
-          tr.style.cssText = index < arr.length - 1 ? 'border-bottom: 1px solid #e2e8f0;' : '';
+        const changesData = Object.entries(log.changes).map(([key, value]) => {
           const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
-          tr.innerHTML = `<td style="padding: 8px 0; font-weight: 500; color: #475569; text-transform: capitalize; width: 35%;">${displayKey}</td><td style="padding: 8px 0; color: #1e293b;">${typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/\n/g, '<br>') : value}</td>`;
-          table.appendChild(tr);
+          const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          return [displayKey, displayValue];
         });
-        changesBox.appendChild(table);
-      } else {
-        changesBox.innerHTML = '<div style="color: #94a3b8; font-style: italic;">Aucune donnee disponible</div>';
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Donnees Modifiees', margin, yPos);
+
+        yPos += 5;
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Champ', 'Valeur']],
+          body: changesData,
+          theme: 'striped',
+          headStyles: {
+            fillColor: navyBlue,
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9,
+          },
+          bodyStyles: {
+            fontSize: 9,
+            cellPadding: 3,
+          },
+          columnStyles: {
+            0: { cellWidth: 45, fontStyle: 'bold' },
+            1: { cellWidth: 'auto' },
+          },
+          alternateRowStyles: {
+            fillColor: lightGray,
+          },
+          margin: { left: margin, right: margin },
+        });
+
+        yPos = doc.lastAutoTable.finalY + 15;
       }
-      changesSection.appendChild(changesBox);
-      wrapper.appendChild(changesSection);
 
       if (log.userAgent) {
-        const uaSection = document.createElement('div');
-        uaSection.innerHTML = `<div style="font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;">User Agent</div><div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-size: 11px; color: #64748b; word-break: break-all;">${log.userAgent}</div>`;
-        wrapper.appendChild(uaSection);
+        doc.setFontSize(9);
+        doc.setTextColor(grayColor);
+        doc.setFont('helvetica', 'bold');
+        doc.text('USER AGENT:', margin, yPos);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const userAgentLines = doc.splitTextToSize(log.userAgent, contentWidth);
+        doc.text(userAgentLines, margin, yPos + 5);
+        yPos += 5 + (userAgentLines.length * 4);
       }
 
-      const footer = document.createElement('div');
-      footer.style.cssText = 'margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center;';
-      footer.textContent = `Genere le ${formatDateTime(new Date())}`;
-      wrapper.appendChild(footer);
+      if (yPos > pageHeight - 40) {
+        doc.addPage();
+        yPos = margin;
+      }
 
-      document.body.appendChild(wrapper);
+      doc.setDrawColor(grayColor);
+      doc.setLineWidth(0.3);
+      doc.line(margin, pageHeight - 25, pageWidth - margin, pageHeight - 25);
 
-      const opt = {
-        margin: 10,
-        filename: `audit-log-${log._id || Date.now()}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff'
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Document genere par CRM Comptabilite', pageWidth / 2, pageHeight - 18, { align: 'center' });
+      doc.text(`Page 1/1`, pageWidth - margin, pageHeight - 18, { align: 'right' });
 
-      await html2pdf().set(opt).from(wrapper).save();
+      doc.save(`audit-log-${log._id || Date.now()}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Erreur lors de la generation du PDF: ' + error.message);
     } finally {
-      if (wrapper && wrapper.parentNode) {
-        wrapper.parentNode.removeChild(wrapper);
-      }
       setDownloadingPDF(false);
     }
   };
