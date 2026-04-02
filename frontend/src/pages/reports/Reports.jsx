@@ -24,8 +24,8 @@ const CHART_COLORS = {
 const CATEGORY_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
 
 const Reports = () => {
-  const { billing } = useSettings();
-  const currency = billing?.currency || 'MAD';
+  const { billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     revenue: 0,

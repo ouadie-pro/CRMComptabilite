@@ -29,6 +29,10 @@ export const SettingsProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
 
+  const getSafeCurrency = (currency) => {
+    return currency && currency.trim() !== '' && currency !== 'USD' ? currency : 'MAD';
+  };
+
   const fetchSettings = async () => {
     try {
       const response = await api.get('/settings');
@@ -64,6 +68,7 @@ export const SettingsProvider = ({ children }) => {
     company: settings.company,
     billing: settings.billing,
     notifications: settings.notifications,
+    getSafeCurrency,
   };
 
   return (

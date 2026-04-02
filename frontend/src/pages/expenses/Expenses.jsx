@@ -84,7 +84,8 @@ const ExpenseForm = ({ expense, onSubmit, onCancel, loading, error }) => {
 };
 
 const Expenses = () => {
-  const { billing } = useSettings();
+  const { billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -246,7 +247,7 @@ const Expenses = () => {
     { key: 'description', header: 'Description', render: (row) => <span className="font-medium">{row.description}</span> },
     { key: 'category', header: 'Catégorie', render: (row) => <Badge>{row.category}</Badge> },
     { key: 'vendor', header: 'Fournisseur' },
-    { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0, billing?.currency || 'MAD') },
+    { key: 'amount', header: 'Montant', render: (row) => formatCurrency(row.amount || 0, currency) },
     { key: 'attachment', header: 'Justificatif', width: '80px', render: (row) => (
       <div className="flex items-center gap-1">
         {row.attachmentUrl ? (
@@ -310,15 +311,9 @@ const Expenses = () => {
               <div className="flex items-center gap-6">
                 <div>
                   <span className="text-sm text-slate-500">Total général</span>
-                  <span className="ml-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(totalAmount, billing?.currency || 'MAD')}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-slate-500">Approuvé</span>
-                  <span className="ml-2 font-semibold text-emerald-600">{formatCurrency(approvedAmount, billing?.currency || 'MAD')}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-slate-500">En attente</span>
-                  <span className="ml-2 font-semibold text-amber-600">{formatCurrency(pendingAmount, billing?.currency || 'MAD')}</span>
+                  <span className="ml-2 font-semibold text-slate-900 dark:text-white">{formatCurrency(totalAmount, currency)}</span>
+                  <span className="ml-2 font-semibold text-emerald-600">{formatCurrency(approvedAmount, currency)}</span>
+                  <span className="ml-2 font-semibold text-amber-600">{formatCurrency(pendingAmount, currency)}</span>
                 </div>
               </div>
             </div>
@@ -334,9 +329,9 @@ const Expenses = () => {
                     <div key={cat} className="text-center p-2 bg-white dark:bg-slate-900 rounded">
                       <div className="text-xs text-slate-500 capitalize">{cat}</div>
                       <div className={`text-sm font-semibold ${isOver ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                        {formatCurrency(actual, billing?.currency || 'MAD')}
+                        {formatCurrency(actual, currency)}
                       </div>
-                      <div className="text-xs text-slate-400">/ {formatCurrency(budget, billing?.currency || 'MAD')}</div>
+                      <div className="text-xs text-slate-400">/ {formatCurrency(budget, currency)}</div>
                       <div className={`text-xs ${isOver ? 'text-red-500' : 'text-emerald-500'}`}>
                         {percent.toFixed(0)}%
                       </div>

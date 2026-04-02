@@ -720,8 +720,8 @@ const CashFlowChart = ({ data, currency }) => {
 };
 
 const Caisse = () => {
-  const { billing } = useSettings();
-  const currency = billing?.currency || 'MAD';
+  const { billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);

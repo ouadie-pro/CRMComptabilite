@@ -10,8 +10,8 @@ import { FiEdit2, FiPlusCircle, FiHome, FiMapPin, FiCreditCard, FiMail, FiPhone,
 const ClientDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { billing } = useSettings();
-  const currency = billing?.currency || 'MAD';
+  const { billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
   const [client, setClient] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [interactions, setInteractions] = useState([]);

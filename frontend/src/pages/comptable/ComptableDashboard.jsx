@@ -52,9 +52,9 @@ const TabButton = ({ active, onClick, icon: Icon, label }) => (
 );
 
 const ComptableDashboard = () => {
-  const { billing } = useSettings();
+  const { billing, getSafeCurrency } = useSettings();
   const navigate = useNavigate();
-  const currency = billing?.currency || 'MAD';
+  const currency = getSafeCurrency(billing?.currency);
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);

@@ -39,8 +39,8 @@ const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'primary'
 };
 
 const Dashboard = () => {
-  const { billing } = useSettings();
-  const currency = billing?.currency || 'MAD';
+  const { billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
   const [stats, setStats] = useState({
     monthlyRevenue: 0,
     recoveryRate: 0,

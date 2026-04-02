@@ -11,7 +11,7 @@ import { FiTrash2, FiPlus, FiEdit2, FiDownload, FiDollarSign, FiMail, FiCopy } f
 const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) => {
   const { billing } = useSettings();
   const defaultVatRate = billing?.vatRate || 20;
-  const currency = billing?.currency || 'MAD';
+  const currency = 'MAD';
   
   const [formData, setFormData] = useState({
     client: invoice?.clientId?._id || invoice?.client?._id || '',
@@ -505,10 +505,8 @@ const InvoiceForm = ({ invoice, onSubmit, onCancel, loading, onInvoiceUpdate }) 
 };
 
 const Invoices = () => {
-  const { company, billing, notifications } = useSettings();
-  const [emailError, setEmailError] = useState(null);
-  const [emailSuccess, setEmailSuccess] = useState(false);
-  const currency = billing?.currency || 'MAD';
+  const { company, billing, getSafeCurrency } = useSettings();
+  const currency = getSafeCurrency(billing?.currency);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -521,6 +519,8 @@ const Invoices = () => {
   const [emailInvoice, setEmailInvoice] = useState(null);
   const [emailData, setEmailData] = useState({ recipientEmail: '', subject: '', message: '' });
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailError, setEmailError] = useState(null);
+  const [emailSuccess, setEmailSuccess] = useState(false);
 
   const statusFilterMap = {
     draft: 'brouillon',
