@@ -5,6 +5,7 @@ import { auditLogService } from '../../services';
 import { formatDateTime, formatDateShort } from '../../utils/formatters';
 import { FiDownload, FiFileText, FiPlus, FiEdit2, FiTrash2, FiChevronRight, FiX, FiFile, FiCalendar } from 'react-icons/fi';
 import html2pdf from 'html2pdf.js';
+import * as XLSX from 'xlsx';
 
 const sanitizeHTML = (str) => {
   if (typeof str !== 'string') return str;
@@ -337,7 +338,8 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
 
   const downloadAllCSV = useCallback(() => {
     const headers = ['Date', 'Utilisateur', 'Catégorie', 'Action', 'Adresse IP', 'ID Entité'];
-    const rows = logs.map(log => [
+    
+    const data = logs.map(log => [
       formatDateTime(log.createdAt),
       log.userId?.name || log.userId?.email || 'Système',
       log.entity || '-',
@@ -346,20 +348,31 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
       log.entityId?.toString() || '-',
     ]);
     
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    const wsData = [headers, ...data];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-logs-${formatDateShort(new Date())}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    ws['!cols'] = [
+      { wch: 28 },
+      { wch: 20 },
+      { wch: 12 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 35 },
+    ];
+    
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    
+    const wsDom = document.createElement('div');
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Audit Logs');
+    
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const filename = `audit-logs-${day}_${month}_${year}.xlsx`;
+    
+    XLSX.writeFile(wb, filename);
   }, [logs]);
 
   const entityColors = {
@@ -496,7 +509,7 @@ ${log.userAgent ? `User Agent: ${log.userAgent}` : ''}
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" size="sm" onClick={downloadAllCSV}>
               <FiDownload className="text-sm" />
-              CSV
+              Excel
             </Button>
             <Button variant="secondary" size="sm" onClick={downloadAllJSON}>
               <FiDownload className="text-sm" />

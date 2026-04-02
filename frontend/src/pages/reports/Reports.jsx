@@ -292,44 +292,93 @@ const Reports = () => {
     try {
       const XLSX = await import('xlsx');
       
+      const formatNum = (num) => {
+        if (num === null || num === undefined || isNaN(num)) return 0;
+        return Math.round(num * 100) / 100;
+      };
+      
+      const formatDate = (date) => {
+        if (!date) return '';
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('fr-FR');
+      };
+      
       const workbook = XLSX.utils.book_new();
       
       const summaryData = [
-        ['Rapport Financier'],
-        [''],
-        ['Période', `${dateRange.start} à ${dateRange.end}`],
-        [''],
-        ['Revenu Total', stats.revenue],
-        ['Dépenses Totales', stats.expenses],
-        ['Bénéfice Net', stats.profit],
-        ['Flux de Trésorerie', stats.cashflow],
-        ['Clients Actifs', stats.activeClients],
-        [''],
+        [{ v: 'Rapport Financier', t: 's' }],
+        [{ v: '', t: 's' }],
+        [{ v: 'Période', t: 's' }, { v: `${dateRange.start} à ${dateRange.end}`, t: 's' }],
+        [{ v: '', t: 's' }],
+        [{ v: 'Revenu Total', t: 's' }, { v: formatNum(stats.revenue), t: 'n' }],
+        [{ v: 'Dépenses Totales', t: 's' }, { v: formatNum(stats.expenses), t: 'n' }],
+        [{ v: 'Bénéfice Net', t: 's' }, { v: formatNum(stats.profit), t: 'n' }],
+        [{ v: 'Flux de Trésorerie', t: 's' }, { v: formatNum(stats.cashflow), t: 'n' }],
+        [{ v: 'Clients Actifs', t: 's' }, { v: stats.activeClients || 0, t: 'n' }],
       ];
       
       const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      summarySheet['!cols'] = [{ wch: 25 }, { wch: 20 }];
+      summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Résumé');
       
-      const transactionsData = [
-        ['Date', 'Type', 'Description', 'Montant', 'Statut'],
-        ...recentTransactions.map(tx => [
-          tx.date,
-          tx.type,
-          tx.client,
-          tx.amount,
-          tx.status === 'paid' ? 'Payé' : 'En attente'
-        ])
+      const invoicesRes = await invoiceService.getAll({
+        ...(dateRange.start && { startDate: dateRange.start }),
+        ...(dateRange.end && { endDate: dateRange.end })
+      });
+      const invoices = invoicesRes.data || invoicesRes || [];
+      
+      const transactionsHeader = [
+        { v: 'N° Facture', t: 's' },
+        { v: 'Client', t: 's' },
+        { v: 'Date', t: 's' },
+        { v: 'Échéance', t: 's' },
+        { v: 'Montant (MAD)', t: 's' },
+        { v: 'Statut', t: 's' }
       ];
+      
+      const transactionsRows = invoices.map(inv => [
+        { v: inv.number || '', t: 's' },
+        { v: inv.clientId?.companyName || '', t: 's' },
+        { v: formatDate(inv.issueDate), t: 's' },
+        { v: formatDate(inv.dueDate), t: 's' },
+        { v: formatNum(inv.totalTTC), t: 'n' },
+        { v: inv.status === 'payé' ? 'Payé' : inv.status === 'envoyé' ? 'Envoyé' : inv.status === 'en_retard' ? 'En retard' : 'Brouillon', t: 's' }
+      ]);
+      
+      const transactionsData = [transactionsHeader, ...transactionsRows];
       const transactionsSheet = XLSX.utils.aoa_to_sheet(transactionsData);
+      transactionsSheet['!cols'] = [
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 12 }
+      ];
+      transactionsSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+      transactionsSheet['!freeze'] = 'A2';
       XLSX.utils.book_append_sheet(workbook, transactionsSheet, 'Transactions');
       
-      const monthlySheetData = monthlyData.map(m => ({
-        'Mois': m.month,
-        'Revenus': m.revenue,
-        'Dépenses': m.expenses,
-        'Bénéfice': m.profit
-      }));
-      const monthlySheet = XLSX.utils.json_to_sheet(monthlySheetData);
+      const monthlyHeader = [
+        { v: 'Mois', t: 's' },
+        { v: 'Revenus (MAD)', t: 's' },
+        { v: 'Dépenses (MAD)', t: 's' },
+        { v: 'Bénéfice (MAD)', t: 's' }
+      ];
+      
+      const monthlyRows = monthlyData.map(m => [
+        { v: m.month, t: 's' },
+        { v: formatNum(m.revenue), t: 'n' },
+        { v: formatNum(m.expenses), t: 'n' },
+        { v: formatNum(m.profit), t: 'n' }
+      ]);
+      
+      const monthlySheetData = [monthlyHeader, ...monthlyRows];
+      const monthlySheet = XLSX.utils.aoa_to_sheet(monthlySheetData);
+      monthlySheet['!cols'] = [{ wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
+      monthlySheet['!freeze'] = 'A2';
       XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Données Mensuelles');
       
       XLSX.writeFile(workbook, `rapport-financier-${formatDateShort(new Date())}.xlsx`);
