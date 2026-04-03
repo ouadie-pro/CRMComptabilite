@@ -1,6 +1,11 @@
 const Budget = require('../models/BudgetSchema');
 const Expense = require('../models/ExpenseSchema');
 
+const normalizeCategory = (cat) => {
+  if (!cat) return '';
+  return cat.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
 const getAllBudgets = async (req, res) => {
   try {
     const { year } = req.query;
@@ -28,10 +33,11 @@ const getBudgetByCategory = async (req, res) => {
     
     const expenses = await Expense.aggregate([
       { $match: { 
-        category, 
         date: { $gte: startDate, $lte: endDate },
         status: 'approved'
       }},
+      { $addFields: { normalizedCategory: { $function: { body: normalizeCategory, args: ['$category'], lang: 'js' } } } },
+      { $match: { normalizedCategory: normalizeCategory(category) }},
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     
@@ -103,16 +109,21 @@ const getBudgetSummary = async (req, res) => {
     
     const expenseMap = {};
     expensesByCategory.forEach(e => {
-      expenseMap[e._id] = e.total;
+      const normalizedKey = normalizeCategory(e._id);
+      expenseMap[normalizedKey] = e.total;
     });
     
-    const summary = budgets.map(budget => ({
-      category: budget.category,
-      budgeted: budget.amount,
-      spent: expenseMap[budget.category] || 0,
-      remaining: budget.amount - (expenseMap[budget.category] || 0),
-      percentage: budget.amount > 0 ? Math.round(((expenseMap[budget.category] || 0) / budget.amount) * 100) : 0,
-    }));
+    const summary = budgets.map(budget => {
+      const normalizedBudgetCat = normalizeCategory(budget.category);
+      const spent = expenseMap[normalizedBudgetCat] || 0;
+      return {
+        category: budget.category,
+        budgeted: budget.amount,
+        spent,
+        remaining: budget.amount - spent,
+        percentage: budget.amount > 0 ? Math.round((spent / budget.amount) * 100) : 0,
+      };
+    });
     
     const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = Object.values(expenseMap).reduce((sum, v) => sum + v, 0);

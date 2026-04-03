@@ -89,6 +89,7 @@ const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -99,7 +100,9 @@ const Expenses = () => {
   const fetchExpenses = async () => {
     setLoading(true);
     try {
-      const params = categoryFilter !== 'all' ? { category: categoryFilter } : {};
+      const params = {};
+      if (categoryFilter !== 'all') params.category = categoryFilter;
+      if (statusFilter !== 'all') params.status = statusFilter;
       const response = await expenseService.getAll(params);
       setExpenses(response.data || response);
     } catch (error) {
@@ -109,7 +112,7 @@ const Expenses = () => {
     }
   };
 
-  useEffect(() => { fetchExpenses(); }, [categoryFilter]);
+  useEffect(() => { fetchExpenses(); }, [categoryFilter, statusFilter]);
 
   const handleSubmit = async (data) => {
     setSubmitting(true);
@@ -234,14 +237,12 @@ const Expenses = () => {
 
   const columns = [
     { key: 'select', header: '', width: '50px', render: (row) => (
-      row.status === 'pending' ? (
-        <button
-          onClick={() => toggleSelectExpense(row._id)}
-          className="text-slate-400 hover:text-primary transition-colors"
-        >
-          {selectedExpenses.includes(row._id) ? <FiCheckSquare className="text-primary" /> : <FiSquare />}
-        </button>
-      ) : null
+      <button
+        onClick={() => row.status === 'pending' && toggleSelectExpense(row._id)}
+        className={`transition-colors ${row.status === 'pending' ? 'text-slate-400 hover:text-primary cursor-pointer' : 'text-slate-200 cursor-default'}`}
+      >
+        {selectedExpenses.includes(row._id) ? <FiCheckSquare className="text-primary" /> : <FiSquare />}
+      </button>
     )},
     { key: 'date', header: 'Date', render: (row) => formatDateShort(row.date) },
     { key: 'description', header: 'Description', render: (row) => <span className="font-medium">{row.description}</span> },
@@ -280,15 +281,23 @@ const Expenses = () => {
     <PageLayout title="Dépenses" actions={<Button onClick={() => { setEditingExpense(null); setShowModal(true); }}><FiPlus />Nouvelle Dépense</Button>}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
-            <option value="all">Toutes catégories</option>
-            <option value="salaire">Salaire</option>
-            <option value="loyer">Loyer</option>
-            <option value="services">Services</option>
-            <option value="fournitures">Fournitures</option>
-            <option value="transport">Transport</option>
-            <option value="autre">Autre</option>
-          </Select>
+          <div className="flex gap-3">
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-36">
+              <option value="all">Tous statuts</option>
+              <option value="pending">En attente</option>
+              <option value="approved">Approuvé</option>
+              <option value="rejected">Rejeté</option>
+            </Select>
+            <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-48">
+              <option value="all">Toutes catégories</option>
+              <option value="salaire">Salaire</option>
+              <option value="loyer">Loyer</option>
+              <option value="services">Services</option>
+              <option value="fournitures">Fournitures</option>
+              <option value="transport">Transport</option>
+              <option value="autre">Autre</option>
+            </Select>
+          </div>
           
           {selectedExpenses.length > 0 && (
             <div className="flex items-center gap-3">

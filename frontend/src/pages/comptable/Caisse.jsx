@@ -4,7 +4,9 @@ import { PageLayout } from '../../components/layout';
 import { Card, Button, Select, Input, Modal, Badge, Loading } from '../../components/ui';
 import { cashTransactionService } from '../../services';
 import { useSettings } from '../../context/SettingsContext';
-import { formatCurrency, formatDateShort, formatDateFull } from '../../utils/formatters';
+import { formatCurrency, formatDateFull } from '../../utils/formatters';
+import { formatDateFrench, getFrenchDateFilename } from '../../utils/exportToExcel';
+import * as XLSX from 'xlsx';
 import {
   FiPlus, FiDownload, FiTrendingUp, FiTrendingDown, FiDollarSign,
   FiArrowUpCircle, FiArrowDownCircle, FiEdit2, FiX, FiRefreshCw,
@@ -711,7 +713,7 @@ const CashFlowChart = ({ data, currency }) => {
           <span className="ml-auto text-xs" title="Les valeurs dépassant 2x la moyenne sont marquées">
             <span className="inline-block w-2 h-2 bg-emerald-400 rounded mx-1"></span>
             <span className="inline-block w-2 h-2 bg-red-400 rounded mx-1"></span>
-           异常值
+            Valeurs inhabituelles
           </span>
         )}
       </div>
@@ -875,28 +877,41 @@ const Caisse = () => {
   }, [transactions]);
 
   const handleExportCSV = () => {
-    const headers = ['Date', 'Type', 'Source', 'Description', 'Méthode', 'Catégorie', 'Montant', 'Statut'];
-    const rows = transactions.map(t => [
-      formatDateFull(t.date),
-      t.type === 'in' ? 'Entrée' : 'Sortie',
-      t.source,
-      t.description,
-      t.method,
-      t.category,
-      t.amount,
-      t.status,
-    ]);
+    const dateStr = getFrenchDateFilename();
+    const rows = transactions.map(t => ({
+      'Date': formatDateFrench(t.date),
+      'Type': t.type === 'in' ? 'Entrée' : 'Sortie',
+      'Source': t.source,
+      'Description': t.description,
+      'Méthode': t.method,
+      'Catégorie': t.category,
+      'Montant (MAD)': t.type === 'in' ? t.amount : -t.amount,
+      'Statut': t.status,
+    }));
 
-    const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `caisse-${formatDateShort(new Date())}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 25 }, { wch: 12 }, { wch: 15 }, { wch: 45 },
+      { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Caisse');
+
+    const summaryWs = XLSX.utils.aoa_to_sheet([
+      ['Sauvegarde Caisse'],
+      [`Date: ${dateStr}`],
+      [],
+      ['Solde actuel', { v: summary.balance, t: 'n' }],
+      ['Total Entrées', { v: summary.totalIn, t: 'n' }],
+      ['Total Sorties', { v: summary.totalOut, t: 'n' }],
+      ['Flux Net', { v: summary.netCashFlow, t: 'n' }],
+      ['Période exportée', filters.startDate && filters.endDate ? `${formatDateFrench(filters.startDate)} - ${formatDateFrench(filters.endDate)}` : 'Toutes les données'],
+    ]);
+    summaryWs['!cols'] = [{ wch: 25 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Résumé');
+
+    XLSX.writeFile(wb, `caisse-${dateStr}.xlsx`);
   };
 
   const getMethodLabel = (method) => {
@@ -954,21 +969,21 @@ const Caisse = () => {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           <StatCard
-            title="Solde Caisse"
+            title="Solde"
             value={formatCurrency(summary.balance, currency)}
             subtitle="Espèces en main"
             icon={FiDollarSign}
             color="primary"
           />
           <StatCard
-            title="Revenus Reçus"
+            title="Revenus"
             value={formatCurrency(summary.totalIn, currency)}
             subtitle={`${summary.bySource?.invoice?.count || 0} transactions`}
             icon={FiTrendingUp}
             color={hasUnlinked ? 'warning' : 'success'}
           />
           <StatCard
-            title="Dépenses Payées"
+            title="Dépenses"
             value={formatCurrency(summary.totalOut, currency)}
             subtitle={`${summary.bySource?.expense?.count || 0} transactions`}
             icon={FiTrendingDown}
@@ -982,7 +997,12 @@ const Caisse = () => {
             color={summary.netCashFlow >= 0 ? 'success' : 'danger'}
           />
           <StatCard
-            title="Non Synchronisé"
+            title={
+              <span className="flex items-center gap-1">
+                Non Sync.
+                <span title="Paiements et dépenses non liés à la caisse. Cliquez pour réconcilier." className="text-slate-400 cursor-help">ⓘ</span>
+              </span>
+            }
             value={formatCurrency(totalUnlinked, currency)}
             subtitle={`${(summary.unlinkedPayments.count || 0) + (summary.unlinkedExpenses.count || 0)} transactions`}
             icon={hasUnlinked ? FiAlertTriangle : FiCheck}

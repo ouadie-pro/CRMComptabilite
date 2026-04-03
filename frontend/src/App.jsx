@@ -20,8 +20,8 @@ import Interactions from './pages/interactions/Interactions';
 import Search from './pages/search/Search';
 import Users from './pages/users/Users';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -33,6 +33,11 @@ const ProtectedRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+    const redirectPath = user?.role === 'comptable' ? '/comptable/dashboard' : '/dashboard';
+    return <Navigate to={redirectPath} replace />;
   }
 
   return children;
@@ -164,7 +169,7 @@ const AppRoutes = () => {
       <Route
         path="/audit"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Audit />
           </ProtectedRoute>
         }
@@ -173,7 +178,7 @@ const AppRoutes = () => {
       <Route
         path="/settings"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Settings />
           </ProtectedRoute>
         }
@@ -182,7 +187,7 @@ const AppRoutes = () => {
       <Route
         path="/interactions"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Interactions />
           </ProtectedRoute>
         }
@@ -191,7 +196,7 @@ const AppRoutes = () => {
       <Route
         path="/search"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Search />
           </ProtectedRoute>
         }
@@ -200,7 +205,7 @@ const AppRoutes = () => {
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Users />
           </ProtectedRoute>
         }
