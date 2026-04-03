@@ -6,6 +6,7 @@ import { reminderService, invoiceService, expenseService } from '../../services'
 import { formatDate, formatCurrency } from '../../utils/formatters';
 import { FiCamera, FiMail, FiBell, FiAlertTriangle, FiCheckCircle, FiClock, FiSend, FiRefreshCw, FiDatabase, FiDownload } from 'react-icons/fi';
 import api, { BACKEND_URL } from '../../services/api';
+import { exportToExcel, exportMultiSheetExcel, formatDateFrench, getFrenchDateFilename } from '../../utils/exportToExcel';
 
 const Settings = () => {
   const { settings, loading: settingsLoading, updateSettings } = useSettings();
@@ -166,43 +167,86 @@ const Settings = () => {
       const invoices = Array.isArray(invoicesRes) ? invoicesRes : (invoicesRes.data || []);
       const products = productsRes.data || [];
       const expenses = Array.isArray(expensesRes) ? expensesRes : (expensesRes.data || []);
+      const dateStr = getFrenchDateFilename();
 
-      let data, filename;
-      
+      const clientColumns = [
+        { header: 'Nom', value: r => r.companyName || r.name || '', width: 25, textType: true },
+        { header: 'Email', value: r => r.email || '', width: 30, textType: true },
+        { header: 'Téléphone', value: r => r.phone || '', width: 15, textType: true },
+        { header: 'Ville', value: r => r.city || r.address || '', width: 15, textType: true },
+        { header: 'Pays', value: r => r.country || 'Maroc', width: 12, textType: true },
+        { header: 'ICE', value: r => r.ice || '', width: 22, textType: true },
+        { header: 'Statut', value: r => r.status || 'actif', width: 12, textType: true },
+        { header: 'Total Facturé (MAD)', value: r => r.totalBilled || 0, width: 18 },
+        { header: 'Limite Crédit', value: r => r.creditLimit || 0, width: 15 },
+        { header: 'Conditions Paiement', value: r => r.paymentTerms || '', width: 20, textType: true },
+        { header: 'Date Création', value: r => formatDateFrench(r.createdAt), width: 20, textType: true },
+      ];
+
+      const invoiceColumns = [
+        { header: 'N° Facture', value: r => r.number || '', width: 15, textType: true },
+        { header: 'Client', value: r => r.clientId?.companyName || r.clientName || '', width: 25, textType: true },
+        { header: 'Date Émission', value: r => formatDateFrench(r.issueDate || r.createdAt), width: 18, textType: true },
+        { header: 'Date Échéance', value: r => formatDateFrench(r.dueDate), width: 18, textType: true },
+        { header: 'Sous-total HT (MAD)', value: r => r.subtotal || 0, width: 18 },
+        { header: 'TVA (MAD)', value: r => r.vatAmount || 0, width: 14 },
+        { header: 'Total TTC (MAD)', value: r => r.totalTTC || 0, width: 16 },
+        { header: 'Statut', value: r => r.status || '', width: 12, textType: true },
+        { header: 'Conditions Paiement', value: r => r.paymentTerms || '', width: 20, textType: true },
+      ];
+
+      const productColumns = [
+        { header: 'SKU', value: r => r.sku || r.code || '', width: 15, textType: true },
+        { header: 'Nom', value: r => r.name || '', width: 30, textType: true },
+        { header: 'Catégorie', value: r => r.category || '', width: 18, textType: true },
+        { header: 'Prix HT (MAD)', value: r => r.price || 0, width: 14 },
+        { header: 'TVA %', value: r => r.vatRate || 0, width: 10 },
+        { header: 'Stock', value: r => r.stock || 0, width: 10 },
+        { header: 'Statut', value: r => r.status || '', width: 12, textType: true },
+      ];
+
+      const expenseColumns = [
+        { header: 'Date', value: r => formatDateFrench(r.date || r.createdAt), width: 15, textType: true },
+        { header: 'Description', value: r => r.description || '', width: 35, textType: true },
+        { header: 'Catégorie', value: r => r.category || '', width: 18, textType: true },
+        { header: 'Fournisseur', value: r => r.supplier || r.vendor || '', width: 22, textType: true },
+        { header: 'Montant (MAD)', value: r => r.amount || 0, width: 15 },
+        { header: 'Justificatif', value: r => r.attachment ? 'Oui' : 'Non', width: 12, textType: true },
+        { header: 'Statut', value: r => r.status || '', width: 12, textType: true },
+      ];
+
+      const rightAlignCols = [4, 5, 6, 7, 8];
+
       switch (type) {
         case 'all':
-          data = { clients, invoices, products, expenses, exportedAt: new Date().toISOString() };
-          filename = `backup-${formatDate(new Date())}.json`;
+          exportMultiSheetExcel([
+            { name: 'Clients', columns: clientColumns, data: clients, rightAlignCols },
+            { name: 'Factures', columns: invoiceColumns, data: invoices, rightAlignCols },
+            { name: 'Produits', columns: productColumns, data: products, rightAlignCols: [3, 4, 5] },
+            { name: 'Dépenses', columns: expenseColumns, data: expenses, rightAlignCols: [4] },
+            { name: 'Résumé', columns: [], data: [] },
+          ], `sauvegarde-complete-${dateStr}.xlsx`, {
+            clients: clients.length,
+            invoices: invoices.length,
+            products: products.length,
+            expenses: expenses.length,
+          });
           break;
         case 'clients':
-          data = clients;
-          filename = `clients-${formatDate(new Date())}.json`;
+          exportToExcel(clients, clientColumns, `clients-${dateStr}.xlsx`, 'Clients', [7, 8]);
           break;
         case 'invoices':
-          data = invoices;
-          filename = `factures-${formatDate(new Date())}.json`;
+          exportToExcel(invoices, invoiceColumns, `factures-${dateStr}.xlsx`, 'Factures', rightAlignCols);
           break;
         case 'products':
-          data = products;
-          filename = `produits-${formatDate(new Date())}.json`;
+          exportToExcel(products, productColumns, `produits-${dateStr}.xlsx`, 'Produits', [3, 4, 5]);
           break;
         case 'expenses':
-          data = expenses;
-          filename = `depenses-${formatDate(new Date())}.json`;
+          exportToExcel(expenses, expenseColumns, `depenses-${dateStr}.xlsx`, 'Dépenses', [4]);
           break;
         default:
           throw new Error('Type invalide');
       }
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
       setSaveMessage({ type: 'success', text: 'Export terminé avec succès' });
       setTimeout(() => setSaveMessage(null), 3000);
@@ -581,8 +625,8 @@ const Settings = () => {
                     <div>
                       <p className="font-medium text-blue-800 dark:text-blue-200">Sauvegarde des données</p>
                       <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                        Exportez vos données au format JSON pour une sauvegarde complète ou partielle. 
-                        Ces fichiers peuvent être utilisés pour archiver ou migrer vos données.
+                        Exportez vos données au format Excel (.xlsx) pour une sauvegarde complète ou partielle.
+                        Ces fichiers sont compatibles avec Excel et peuvent être utilisés pour archiver ou analyser vos données.
                       </p>
                     </div>
                   </div>
@@ -601,7 +645,7 @@ const Settings = () => {
                     </p>
                     <Button onClick={() => handleExportData('all')} loading={exporting} className="w-full">
                       <FiDownload className="text-sm" />
-                      Exporter tout (JSON)
+                      Exporter tout
                     </Button>
                   </div>
 
@@ -686,9 +730,9 @@ const Settings = () => {
                 <div className="flex items-start gap-3 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                   <FiDatabase className="text-slate-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-medium text-slate-800 dark:text-slate-200">Format JSON</p>
+                    <p className="font-medium text-slate-800 dark:text-slate-200">Format Excel (.xlsx)</p>
                     <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                      Les exports sont au format JSON, compatible avec la plupart des outils et systèmes de migration.
+                      Les exports sont au format Excel, compatibles avec Microsoft Excel, Google Sheets et autres tableurs.
                     </p>
                   </div>
                 </div>
